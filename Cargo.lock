@@ -10159,6 +10159,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "pallet-governance"
+version = "0.1.0"
+dependencies = [
+ "pallet-balances",
+ "parity-scale-codec",
+ "polkadot-sdk-frame",
+ "scale-info",
+]
+
+[[package]]
 name = "pallet-grandpa"
 version = "50.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"

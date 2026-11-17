@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["runtime"]
+members = ["runtime", "pallets/governance"]
 
 [workspace.package]
 authors = ["Polkadot Academy"]
@@ -12,6 +12,8 @@ repository = "https://github.com/polkadot-academy/utn-pallet-workshop"
 # Everything from the Polkadot SDK comes from one pinned "umbrella" crate.
 # polkadot-stable2609-2 == polkadot-sdk 2609.3.0
 polkadot-sdk = { version = "2609.3.0", default-features = false }
+frame = { package = "polkadot-sdk-frame", version = "0.19.0", default-features = false }
+pallet-balances = { version = "51.0.2", default-features = false }
 cumulus-pallet-parachain-system = { version = "0.32.0", default-features = false }
 substrate-wasm-builder = { version = "35.0.0" }
 
@@ -22,6 +24,9 @@ smallvec = { version = "1.11.0" }
 docify = { version = "0.2.9" }
 log = { version = "0.4.22", default-features = false }
 hex-literal = { version = "0.4.1" }
+
+# Local
+pallet-governance = { path = "pallets/governance", default-features = false }
 
 [profile.release]
 panic = "unwind"

@@ -1,0 +1,87 @@
+--- a/pallets/governance/src/lib.rs
++++ b/pallets/governance/src/lib.rs
+@@ -34,9 +34,8 @@
+ mod mock;
+ #[cfg(test)]
+ mod tests;
+-// TODO(workshop, part 3): uncomment the next two lines to enable the `cancel` tests.
+-// #[cfg(test)]
+-// mod cancel_tests;
++#[cfg(test)]
++mod cancel_tests;
+ 
+ #[frame::pallet]
+ pub mod pallet {
+@@ -111,7 +110,8 @@
+ 		Approved,
+ 		/// Not more ayes than nays: the call was not dispatched.
+ 		Rejected,
+-		// TODO(workshop, part 3): add a `Cancelled` status here.
++		/// The proposer withdrew it before voting ended.
++		Cancelled,
+ 	}
+ 
+ 	#[derive(
+@@ -191,7 +191,8 @@
+ 		Rejected { id: ProposalId },
+ 		/// A voter got their tokens back.
+ 		Unlocked { id: ProposalId, voter: T::AccountId, amount: BalanceOf<T> },
+-		// TODO(workshop, part 3): add a `Cancelled { id: ProposalId }` event here.
++		/// The proposer cancelled a proposal.
++		Cancelled { id: ProposalId },
+ 	}
+ 
+ 	#[pallet::error]
+@@ -214,7 +215,8 @@
+ 		NoVote,
+ 		/// The stored call could not be decoded (e.g. the runtime changed under it).
+ 		UndecodableCall,
+-		// TODO(workshop, part 3): add a `NotProposer` error here.
++		/// Only the proposer can do this.
++		NotProposer,
+ 	}
+ 
+ 	// -------------------------------------------------------------------------------------
+@@ -302,24 +304,24 @@
+ 			Ok(())
+ 		}
+ 
+-		// TODO(workshop, part 3): add a `cancel` call.
+-		//
+-		//   #[pallet::call_index(3)]
+-		//   #[pallet::weight(Weight::from_parts(20_000_000, 2_000) + T::DbWeight::get().reads_writes(2, 2))]
+-		//   pub fn cancel(origin: OriginFor<T>, id: ProposalId) -> DispatchResult { ... }
+-		//
+-		// It should:
+-		//   1. get the caller with `ensure_signed`;
+-		//   2. load the proposal (error `ProposalNotFound` if missing);
+-		//   3. check the caller is the proposer (`NotProposer`) and voting is still open
+-		//      (`VotingClosed`);
+-		//   4. set the status to `Status::Cancelled` and save the proposal;
+-		//   5. remove `id` from `EndingAt` for the proposal's `end` block, so the hook skips it
+-		//      (hint: `EndingAt::<T>::mutate(end, |ids| ids.retain(|x| *x != id))`);
+-		//   6. emit `Event::Cancelled { id }`.
+-		//
+-		// Voters get their tokens back with `unlock`, which already works for any status that
+-		// isn't `Ongoing`.
++		/// Withdraw your own proposal while it is still open. Voters can then `unlock` right away.
++		#[pallet::call_index(3)]
++		#[pallet::weight(Weight::from_parts(20_000_000, 2_000) + T::DbWeight::get().reads_writes(2, 2))]
++		pub fn cancel(origin: OriginFor<T>, id: ProposalId) -> DispatchResult {
++			let who = ensure_signed(origin)?;
++
++			let mut proposal = Proposals::<T>::get(id).ok_or(Error::<T>::ProposalNotFound)?;
++			ensure!(proposal.proposer == who, Error::<T>::NotProposer);
++			ensure!(proposal.status == Status::Ongoing, Error::<T>::VotingClosed);
++
++			proposal.status = Status::Cancelled;
++			let end = proposal.end;
++			Proposals::<T>::insert(id, proposal);
++			EndingAt::<T>::mutate(end, |ids| ids.retain(|x| *x != id));
++
++			Self::deposit_event(Event::Cancelled { id });
++			Ok(())
++		}
+ 	}
+ 
+ 	// -------------------------------------------------------------------------------------
