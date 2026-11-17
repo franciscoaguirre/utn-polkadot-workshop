@@ -4,3 +4,4 @@ node_modules/
 .DS_Store
 bin/
 chain_spec.json
+dao-address.json

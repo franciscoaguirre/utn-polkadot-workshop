@@ -1,0 +1,17 @@
+{
+  "name": "workshop-contracts",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "compile": "hardhat compile",
+    "test": "hardhat test nodejs --network local",
+    "deploy": "hardhat run scripts/deploy.ts --network local"
+  },
+  "devDependencies": {
+    "@nomicfoundation/hardhat-toolbox-viem": "^5.0.7",
+    "@types/node": "^22.20.5",
+    "hardhat": "^3.22.0",
+    "typescript": "^5.9.3",
+    "viem": "^2.58.0"
+  }
+}

@@ -35,6 +35,8 @@ use frame_support::{
 };
 use pallet_aura::Authorities;
 // Used inside `pallet_revive::impl_runtime_apis_plus_revive_traits!`.
+#[allow(unused_imports)]
+use super::{EthExtraImpl, Revive};
 use sp_api::impl_runtime_apis;
 use sp_consensus_aura::sr25519::AuthorityId as AuraId;
 use sp_core::{crypto::KeyTypeId, OpaqueMetadata};
@@ -48,7 +50,7 @@ use sp_version::RuntimeVersion;
 
 // Local module imports
 use super::{
-	AccountId, Balance, Block, BlockNumber, ConsensusHook, EthExtraImpl, Executive, Revive, InherentDataExt, Nonce, ParachainSystem,
+	AccountId, Balance, Block, BlockNumber, ConsensusHook, Executive, InherentDataExt, Nonce, ParachainSystem,
 	Runtime, RuntimeCall, RuntimeGenesisConfig, SessionKeys, System, TransactionPayment,
 	SLOT_DURATION, VERSION,
 };

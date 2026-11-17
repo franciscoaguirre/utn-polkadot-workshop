@@ -311,6 +311,10 @@ mod runtime {
 	// Smart contracts (Solidity / EVM + PolkaVM)
 	#[runtime::pallet_index(50)]
 	pub type Revive = pallet_revive;
+
+	// Workshop: token-voting governance (kernel space).
+	#[runtime::pallet_index(60)]
+	pub type Governance = pallet_governance;
 }
 
 #[docify::export(register_validate_block)]

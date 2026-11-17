@@ -10169,6 +10169,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "pallet-governance-precompile"
+version = "0.1.0"
+dependencies = [
+ "alloy-core",
+ "pallet-governance",
+ "pallet-revive",
+ "parity-scale-codec",
+ "polkadot-sdk-frame",
+]
+
+[[package]]
 name = "pallet-grandpa"
 version = "50.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -21844,6 +21855,8 @@ dependencies = [
  "docify",
  "hex-literal",
  "log",
+ "pallet-governance",
+ "pallet-governance-precompile",
  "parity-scale-codec",
  "polkadot-sdk",
  "scale-info",

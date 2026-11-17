@@ -16,6 +16,10 @@ scale-info = { workspace = true }
 serde_json = { workspace = true }
 smallvec = { workspace = true }
 
+# Workshop pallets
+pallet-governance = { workspace = true }
+pallet-governance-precompile = { workspace = true }
+
 polkadot-sdk = { workspace = true, features = [
 	"pallet-aura",
 	"pallet-authorship",
@@ -61,6 +65,8 @@ std = [
 	"codec/std",
 	"cumulus-pallet-parachain-system/std",
 	"log/std",
+	"pallet-governance/std",
+	"pallet-governance-precompile/std",
 	"polkadot-sdk/std",
 	"scale-info/std",
 	"serde_json/std",
@@ -68,10 +74,14 @@ std = [
 ]
 runtime-benchmarks = [
 	"cumulus-pallet-parachain-system/runtime-benchmarks",
+	"pallet-governance/runtime-benchmarks",
+	"pallet-governance-precompile/runtime-benchmarks",
 	"polkadot-sdk/runtime-benchmarks",
 ]
 try-runtime = [
 	"cumulus-pallet-parachain-system/try-runtime",
+	"pallet-governance/try-runtime",
+	"pallet-governance-precompile/try-runtime",
 	"polkadot-sdk/try-runtime",
 ]
 metadata-hash = ["substrate-wasm-builder/metadata-hash"]

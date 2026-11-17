@@ -1,0 +1,27 @@
+[package]
+name = "pallet-governance-precompile"
+description = "Exposes pallet-governance to Solidity contracts at a fixed address."
+version = "0.1.0"
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+publish = false
+
+[dependencies]
+alloy-core = { workspace = true }
+codec = { workspace = true }
+frame = { workspace = true, features = ["experimental", "runtime"] }
+pallet-governance = { workspace = true }
+pallet-revive = { workspace = true }
+
+[features]
+default = ["std"]
+std = [
+	"alloy-core/std",
+	"codec/std",
+	"frame/std",
+	"pallet-governance/std",
+	"pallet-revive/std",
+]
+runtime-benchmarks = ["frame/runtime-benchmarks", "pallet-governance/runtime-benchmarks", "pallet-revive/runtime-benchmarks"]
+try-runtime = ["frame/try-runtime", "pallet-governance/try-runtime", "pallet-revive/try-runtime"]

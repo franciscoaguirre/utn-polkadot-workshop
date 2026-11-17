@@ -370,5 +370,20 @@ impl pallet_revive::Config for Runtime {
 	// Every account gets an Ethereum address automatically (no `map_account` step).
 	type AutoMap = ConstBool<true>;
 	type GasScale = ConstU32<1000>;
-	type Precompiles = ();
+	// Contracts can call the governance pallet at 0x0000000000000000000000000000000009000000.
+	type Precompiles = (pallet_governance_precompile::GovernancePrecompile<Self>,);
+}
+
+parameter_types! {
+	/// With `--dev-block-time 1000` blocks come every second, so this is about a minute.
+	pub const GovernanceVotingPeriod: BlockNumber = 60;
+}
+
+/// Workshop: token-voting governance. Passing proposals run as Root.
+impl pallet_governance::Config for Runtime {
+	type Currency = Balances;
+	type RuntimeHoldReason = RuntimeHoldReason;
+	type VotingPeriod = GovernanceVotingPeriod;
+	type MaxCallLength = ConstU32<4096>;
+	type MaxProposalsPerBlock = ConstU32<16>;
 }
