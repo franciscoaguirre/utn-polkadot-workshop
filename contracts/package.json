@@ -4,9 +4,10 @@
   "type": "module",
   "scripts": {
     "compile": "hardhat compile",
-    "test": "hardhat test nodejs --network local",
+    "test": "hardhat test nodejs --network local test/Dao.ts",
     "deploy": "hardhat run scripts/deploy.ts --network local",
-    "dao-vote": "hardhat run scripts/dao-vote.ts --network local"
+    "dao-vote": "hardhat run scripts/dao-vote.ts --network local",
+    "test:extras": "hardhat test nodejs --network local test/Extras.ts"
   },
   "devDependencies": {
     "@nomicfoundation/hardhat-toolbox-viem": "^5.0.7",

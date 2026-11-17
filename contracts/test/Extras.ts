@@ -1,6 +1,6 @@
 // End-to-end test of the stretch contracts (needs the node + eth-rpc running).
 // It waits for a real proposal to close, so it takes about a minute.
-// Run: npx hardhat test nodejs --network local test/Extras.ts
+// Run: npm run test:extras
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { network } from "hardhat";

@@ -3,5 +3,5 @@ node_modules/
 *.log
 .DS_Store
 bin/
-chain_spec.json
+logs/
 dao-address.json

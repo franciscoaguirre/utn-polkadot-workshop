@@ -130,3 +130,18 @@ scripts/setup.sh, scripts/check.sh   pre-work install/build + ✅/❌ readiness 
 - `npx hardhat test --network local` against a running node passes, including the DAO casting its vote through the precompile.
 - PAPI scripts 01–04 run end to end on a fresh chain. After step 03, the spec_version increments and step 04's `cancel` succeeds.
 - Do a clean-clone dry run of `setup.sh` + `check.sh`, and record the build times and disk usage for INSTRUCTOR.md.
+
+## Implementation notes (2026-11-17)
+
+What changed from the plan while building, and why:
+
+- **The node is omni-node.** The step-2 test passed on prebuilt `polkadot-omni-node --dev`: Hardhat via `eth-rpc`, a live `authorize_upgrade` + `apply_authorized_upgrade`, and `eth-rpc` still working after the upgrade. The revive dev-node fallback was not needed.
+- **Prebuilt binaries cover Linux x86_64 and macOS arm64 only.** `setup.sh` falls back to `cargo install` on other platforms. Builds run out of memory on 8 GB machines with default parallelism, so `setup.sh` sets the job count from available RAM.
+- **`Cargo.lock` is committed and pins `alloy-trie` 0.9.5.** pallet-revive 0.22.0 does not compile against 0.9.9.
+- **Cancel tests are a commented-out module (`cancel_tests.rs`), not `#[ignore]`.** Ignored tests must still compile, and they reference items students haven't written yet.
+- **The precompile uses wei amounts (18 decimals)** and converts them to native units, so Solidity code never deals with two unit systems.
+- **Only two stretch contracts: PredictionMarket and VoteMarket.** The pallet's one-vote-per-account rule rules out a delegation contract, and with no proposal deposit there is nothing to crowdfund. Both limits are written up as discussion points in INSTRUCTOR.md.
+- **VoteMarket pays a fixed price while voting is open.** Pro-rata payment after the vote ends would break, because `unlock` deletes the vote record.
+- **Prebuilt v1 and v2 runtimes are in `solutions/runtime/`** as fallbacks for broken builds.
+- **The PAPI project uses `moduleResolution: bundler`.** Under `node16`, the generated descriptor types silently resolved to `any`.
+- **The voting period is 60 blocks**, about 1 minute with `--dev-block-time 1000`.

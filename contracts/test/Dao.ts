@@ -1,5 +1,5 @@
 // End-to-end test of the DAO against the local chain (needs the node + eth-rpc running).
-// Run: npm test
+// Run: npm test   (the chain must be running: ./scripts/start-chain.sh)
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { network } from "hardhat";
