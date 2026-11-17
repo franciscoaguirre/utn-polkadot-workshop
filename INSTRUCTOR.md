@@ -42,7 +42,8 @@ The time sink is **Part 3's build**. An incremental runtime rebuild after the pa
 - The address `0x…09000000` has no bytecode. pallet-revive sees the call and runs Rust (`pallets/governance/precompile/src/lib.rs`).
 - `msg.sender` inside the pallet is the **DAO contract's account**. Every Ethereum address maps to a Polkadot account: the address followed by 12 bytes of `0xEE`.
 - Amounts are in wei (18 decimals) for Solidity. The precompile converts them to the native token's 12 decimals.
-- The test prints the DAO's balance dropping to 0 after `castVote`: the tokens are held, not gone.
+- The test checks that the DAO's balance drops to 0 after `castVote`: the tokens are held, not gone.
+- The DAO mixes two voting systems. Inside, it's a whitelist with one person, one vote. Outside, governance counts tokens. Ask the students: is it fair that a 2-vs-1 split inside the DAO puts the **whole** treasury on one side? What would a fairer DAO do?
 
 **Part 3 — the upgrade**
 - The proposal carries only a 32-byte hash, not 1.5 MB of code. `authorize_upgrade` is Root-only, and governance supplies the Root. `apply_authorized_upgrade` is free and anyone can call it, because the hash is already approved.
@@ -63,7 +64,7 @@ The time sink is **Part 3's build**. An incremental runtime rebuild after the pa
 ## Known limits (good discussion material)
 
 - **One vote per account per proposal.** That's why a contract can't vote different directions for different members (no "delegation" contract in the extras).
-- **Holds don't overlap across proposals.** The DAO's tokens held for proposal A can't also vote on proposal B until they're unlocked. OpenGov uses *locks*, which overlap, to avoid this.
+- **Holds don't overlap across proposals.** Tokens held for proposal A can't also vote on proposal B until they're unlocked, so the DAO votes on B with only what's left in its treasury. OpenGov uses *locks*, which overlap, to avoid this.
 - **Unbounded dispatch in the hook.** `on_initialize` runs passed calls without pre-checking that they fit in the block. That's fine for a workshop, not for production.
 
 ## Technical facts (verified while building this repo)

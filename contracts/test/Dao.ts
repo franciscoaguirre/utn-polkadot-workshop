@@ -21,7 +21,7 @@ enum ProposalStatus {
 describe("Dao", async () => {
   const { viem } = await network.create();
   const publicClient = await viem.getPublicClient();
-  const [alice, bob, charlie] = await viem.getWalletClients();
+  const [owner, alice, bob, charlie, outsider] = await viem.getWalletClients();
   const governance = await viem.getContractAt("IGovernance", GOVERNANCE_ADDRESS);
 
   const wait = async (hash: `0x${string}`) => {
@@ -30,12 +30,29 @@ describe("Dao", async () => {
     return receipt;
   };
 
-  it("members vote inside the DAO and the DAO votes in governance", async () => {
-    const dao = await viem.deployContract("Dao");
+  /** A DAO with Alice, Bob and Charlie as members and `treasury` tokens to vote with. */
+  async function deployDao(treasury: string) {
+    const dao = await viem.deployContract("Dao", [], { account: owner.account });
+    for (const member of [alice, bob, charlie]) {
+      await wait(await dao.write.addMember([member.account.address], { account: owner.account }));
+    }
+    await wait(await dao.write.fund({ value: parseEther(treasury), account: owner.account }));
+    return dao;
+  }
 
-    await wait(await dao.write.join({ value: parseEther("10"), account: alice.account }));
-    await wait(await dao.write.join({ value: parseEther("5"), account: bob.account }));
-    await wait(await dao.write.join({ value: parseEther("1"), account: charlie.account }));
+  it("only the owner manages the whitelist, and only members vote", async () => {
+    const dao = await deployDao("1");
+    assert.equal(await dao.read.memberCount(), 3n);
+    await assert.rejects(
+      dao.write.addMember([outsider.account.address], { account: alice.account }),
+      /only the owner/,
+    );
+    await assert.rejects(dao.write.vote([0, true], { account: outsider.account }), /not a member/);
+    await assert.rejects(dao.write.propose([REMARK_HI], { account: outsider.account }), /not a member/);
+  });
+
+  it("one member, one vote: the majority decides how the whole treasury votes", async () => {
+    const dao = await deployDao("16");
 
     // Propose through the DAO: the precompile returns the new proposal id.
     const { result: id } = await dao.simulate.propose([REMARK_HI], { account: alice.account });
@@ -46,29 +63,37 @@ describe("Dao", async () => {
     assert.equal(proposer.toLowerCase(), dao.address.toLowerCase());
     assert.equal(status, ProposalStatus.Ongoing);
 
-    // Alice and Charlie say aye (11), Bob says nay (5).
+    // Two members say aye, one says nay. Each counts once.
     await wait(await dao.write.vote([id, true], { account: alice.account }));
     await wait(await dao.write.vote([id, false], { account: bob.account }));
     await wait(await dao.write.vote([id, true], { account: charlie.account }));
+    await assert.rejects(dao.write.vote([id, true], { account: alice.account }), /already voted/);
+    const [ayes, nays] = await dao.read.ballots([id]);
+    assert.deepEqual([ayes, nays], [2n, 1n]);
 
-    const balanceBefore = await publicClient.getBalance({ address: dao.address });
     await wait(await dao.write.castVote([id]));
 
-    // The pallet saw one aye vote of 16 tokens, from the DAO.
-    const [, , , , ayes, nays] = await governance.read.proposal([id]);
-    assert.equal(ayes, parseEther("16"));
-    assert.equal(nays, 0n);
+    // The pallet saw one aye vote with the DAO's whole treasury.
+    const [, , , , governanceAyes, governanceNays] = await governance.read.proposal([id]);
+    assert.equal(governanceAyes, parseEther("16"));
+    assert.equal(governanceNays, 0n);
     const [voted, aye, amount] = await governance.read.voteOf([id, dao.address]);
     assert.deepEqual([voted, aye, amount], [true, true, parseEther("16")]);
 
     // The tokens are held inside the DAO's own account: still there, but not spendable.
-    const balanceAfter = await publicClient.getBalance({ address: dao.address });
-    console.log(`      DAO balance before vote: ${balanceBefore}, after: ${balanceAfter}`);
+    assert.equal(await publicClient.getBalance({ address: dao.address }), 0n);
+  });
+
+  it("a tie means the DAO doesn't vote", async () => {
+    const dao = await deployDao("1");
+    const id = await governance.read.nextProposalId();
+    await wait(await dao.write.propose([REMARK_HI], { account: alice.account }));
+    await wait(await dao.write.vote([id, true], { account: alice.account }));
+    await wait(await dao.write.vote([id, false], { account: bob.account }));
+    await assert.rejects(dao.write.castVote([id]), /no majority/);
   });
 
   it("reverts with the pallet's error name", async () => {
-    const dao = await viem.deployContract("Dao");
-    await wait(await dao.write.join({ value: parseEther("1"), account: alice.account }));
     await assert.rejects(
       governance.write.vote([999_999, true, parseEther("1")], { account: alice.account }),
       /ProposalNotFound/,

@@ -3,7 +3,7 @@
 In this workshop you take a running blockchain and:
 
 1. **Kernel space:** read a *pallet*, a piece of the chain's own code. Ours is a tiny governance system: anyone proposes, token holders vote, and when voting ends **the chain runs the winning proposal by itself, with superuser (Root) powers**.
-2. **User space:** write a **Solidity DAO** that votes in that governance as one bloc. It's deployed with Hardhat, just like on Ethereum.
+2. **User space:** write a **Solidity DAO** that takes part in that governance with one combined vote for all its members. It's deployed with Hardhat, just like on Ethereum.
 3. **Change the kernel:** add a feature to the pallet, rebuild the chain's code, and **vote your own upgrade into the running chain**. Your DAO votes too.
 
 You'll drive and watch everything from TypeScript with [PAPI](https://papi.how).
@@ -94,7 +94,7 @@ Read [`papi/src/02-propose-and-vote.ts`](papi/src/02-propose-and-vote.ts) to see
 
 ### Part 2: user space (30 min)
 
-Your DAO is [`contracts/contracts/Dao.sol`](contracts/contracts/Dao.sol). Members deposit tokens for shares, vote inside the DAO, and then the DAO casts **one** vote in the chain's governance with all their weight.
+Your DAO is [`contracts/contracts/Dao.sol`](contracts/contracts/Dao.sol). The owner keeps a whitelist of members. Inside the DAO it's **one person, one vote**. Then the DAO casts **one** vote in the chain's governance, in the direction most members chose, using all the tokens in its treasury.
 
 It talks to the pallet through [`IGovernance.sol`](contracts/contracts/IGovernance.sol). That address isn't a contract: it's a *precompile* that calls straight into the pallet.
 
@@ -104,12 +104,12 @@ It talks to the pallet through [`IGovernance.sol`](contracts/contracts/IGovernan
    cd contracts
    npm test
    ```
-3. Deploy it, with three Hardhat accounts joining:
+3. Deploy it. The first Hardhat account becomes the owner, whitelists the next three as members and funds the treasury:
    ```bash
    npm run deploy
    ```
 
-In the test output, notice the DAO's balance going to **0** after it votes. The tokens are still in the DAO's account, but held by the pallet until `unlock`.
+The test checks that the DAO's balance goes to **0** after it votes. The tokens are still in the DAO's account, but held by the pallet until `unlock`.
 
 ### Part 3: change the kernel (35 min)
 

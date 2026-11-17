@@ -3,22 +3,27 @@ pragma solidity ^0.8.28;
 
 import {IGovernance, GOVERNANCE_ADDRESS} from "./IGovernance.sol";
 
-/// A DAO that votes as one bloc in on-chain governance.
+/// A DAO that takes part in on-chain governance with one combined vote for all its members.
 ///
-/// Members deposit tokens to get voting shares. For each governance proposal, members vote
-/// inside the DAO; then anyone can tell the DAO to cast its vote: the DAO votes with all the
-/// shares that took part, in the direction the majority of them chose.
+/// - Membership is a whitelist kept by the owner (whoever deployed the DAO).
+/// - Inside the DAO it's one person, one vote: every member counts the same.
+/// - The DAO has a treasury that anyone can fund. When the DAO casts its vote in governance,
+///   it votes with its whole (spendable) treasury, in the direction most members chose.
 ///
 /// The DAO lives in user space (a contract). The governance it votes in lives in kernel space
 /// (a pallet). The bridge between them is the precompile at GOVERNANCE_ADDRESS.
 contract Dao {
     IGovernance constant GOVERNANCE = IGovernance(GOVERNANCE_ADDRESS);
 
-    /// Voting shares per member, in wei (1 wei deposited = 1 share).
-    mapping(address => uint256) public shares;
-    uint256 public totalShares;
+    /// The native token has 12 decimals and Solidity amounts have 18, so governance only accepts
+    /// multiples of 10^6 wei.
+    uint256 constant WEI_PER_NATIVE_UNIT = 1e6;
 
-    /// The DAO's internal ballot for each governance proposal.
+    address public owner;
+    mapping(address => bool) public isMember;
+    uint256 public memberCount;
+
+    /// The DAO's internal ballot for each governance proposal: one vote per member.
     struct Ballot {
         uint256 ayes;
         uint256 nays;
@@ -27,38 +32,72 @@ contract Dao {
     mapping(uint32 => Ballot) public ballots;
     mapping(uint32 => mapping(address => bool)) public hasVoted;
 
-    event Joined(address indexed member, uint256 amount);
-    event MemberVoted(uint32 indexed id, address indexed member, bool aye, uint256 weight);
+    event MemberAdded(address indexed member);
+    event MemberRemoved(address indexed member);
+    event Funded(address indexed from, uint256 amount);
+    event MemberVoted(uint32 indexed id, address indexed member, bool aye);
     event VoteCast(uint32 indexed id, bool aye, uint256 amount);
 
-    /// Deposit tokens and receive the same number of shares.
-    function join() external payable {
-        require(msg.value > 0, "send some tokens");
-        shares[msg.sender] += msg.value;
-        totalShares += msg.value;
-        emit Joined(msg.sender, msg.value);
+    modifier onlyOwner() {
+        require(msg.sender == owner, "only the owner");
+        _;
     }
 
+    modifier onlyMember() {
+        require(isMember[msg.sender], "not a member");
+        _;
+    }
+
+    constructor() {
+        owner = msg.sender;
+    }
+
+    // ------------------------------------------------------------------ membership
+
+    function addMember(address member) external onlyOwner {
+        require(!isMember[member], "already a member");
+        isMember[member] = true;
+        memberCount += 1;
+        emit MemberAdded(member);
+    }
+
+    function removeMember(address member) external onlyOwner {
+        require(isMember[member], "not a member");
+        isMember[member] = false;
+        memberCount -= 1;
+        emit MemberRemoved(member);
+    }
+
+    // -------------------------------------------------------------------- treasury
+
+    /// Anyone can add tokens to the treasury.
+    function fund() external payable {
+        emit Funded(msg.sender, msg.value);
+    }
+
+    receive() external payable {
+        emit Funded(msg.sender, msg.value);
+    }
+
+    // ---------------------------------------------------------------- governance
+
     /// Members propose through the DAO: the proposer on chain will be the DAO itself.
-    function propose(bytes calldata call) external returns (uint32 id) {
-        require(shares[msg.sender] > 0, "not a member");
+    function propose(bytes calldata call) external onlyMember returns (uint32 id) {
         id = GOVERNANCE.propose(call);
     }
 
-    /// Vote inside the DAO on governance proposal `id`, with all your shares.
-    function vote(uint32 id, bool aye) external {
-        uint256 weight = shares[msg.sender];
-        require(weight > 0, "not a member");
+    /// Vote inside the DAO on governance proposal `id`. One member, one vote.
+    function vote(uint32 id, bool aye) external onlyMember {
         require(!hasVoted[id][msg.sender], "already voted");
         require(!ballots[id].cast, "DAO vote already cast");
 
         hasVoted[id][msg.sender] = true;
         if (aye) {
-            ballots[id].ayes += weight;
+            ballots[id].ayes += 1;
         } else {
-            ballots[id].nays += weight;
+            ballots[id].nays += 1;
         }
-        emit MemberVoted(id, msg.sender, aye, weight);
+        emit MemberVoted(id, msg.sender, aye);
     }
 
     /// Cast the DAO's vote in on-chain governance. Anyone can call this.
@@ -69,7 +108,11 @@ contract Dao {
         ballot.cast = true;
 
         bool aye = ballot.ayes > ballot.nays;
-        uint256 amount = ballot.ayes + ballot.nays;
+        // Tokens held for earlier proposals don't show up in the balance, so this is exactly
+        // what the DAO can still vote with. Round down to what governance accepts.
+        uint256 amount = address(this).balance - (address(this).balance % WEI_PER_NATIVE_UNIT);
+        require(amount > 0, "empty treasury");
+
         // The pallet holds `amount` of the DAO's own balance until voting ends.
         GOVERNANCE.vote(id, aye, amount);
         emit VoteCast(id, aye, amount);

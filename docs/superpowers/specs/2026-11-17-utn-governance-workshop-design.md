@@ -4,7 +4,7 @@
 
 This is a 2-hour online workshop for UTN students. They know Solidity and Ethereum, are new to Polkadot, and don't know Rust. They have already had a lecture on Substrate, on pallets as "kernel space" vs contracts as "user space", and on Polkadot's architecture. The workshop makes that split hands-on.
 
-Students meet a deliberately minimal **OpenGov-style governance pallet** (kernel space). It is exposed to Solidity through a **pallet-revive precompile**. They write a **DAO contract** in Hardhat (user space) that votes as one bloc among many token holders. They drive and observe everything with **PAPI**.
+Students meet a deliberately minimal **OpenGov-style governance pallet** (kernel space). It is exposed to Solidity through a **pallet-revive precompile**. They write a **DAO contract** in Hardhat (user space) that casts one combined vote for its members among many token holders. They drive and observe everything with **PAPI**.
 
 The finale ties it all together. Students add a feature to the pallet (`cancel`), rebuild the runtime, and **vote their own upgrade into the running chain**. The chain swaps code live and PAPI sees the new call.
 
@@ -145,3 +145,4 @@ What changed from the plan while building, and why:
 - **Prebuilt v1 and v2 runtimes are in `solutions/runtime/`** as fallbacks for broken builds.
 - **The PAPI project uses `moduleResolution: bundler`.** Under `node16`, the generated descriptor types silently resolved to `any`.
 - **The voting period is 60 blocks**, about 1 minute with `--dev-block-time 1000`.
+- **The DAO uses a whitelist and one person, one vote** (changed after review). The owner (the deployer) adds and removes members, and each member counts once. The DAO votes in governance with its whole spendable treasury, in the majority's direction. Anyone can fund the treasury. Tokens held for earlier proposals are automatically excluded from later votes.
