@@ -1,0 +1,77 @@
+[package]
+name = "workshop-runtime"
+description = "UTN workshop runtime: parachain template + pallet-revive + governance."
+version = "0.1.0"
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+publish = false
+
+[dependencies]
+codec = { workspace = true }
+docify = { workspace = true }
+hex-literal = { workspace = true }
+log = { workspace = true }
+scale-info = { workspace = true }
+serde_json = { workspace = true }
+smallvec = { workspace = true }
+
+polkadot-sdk = { workspace = true, features = [
+	"pallet-aura",
+	"pallet-authorship",
+	"pallet-balances",
+	"pallet-message-queue",
+	"pallet-revive",
+	"pallet-session",
+	"pallet-sudo",
+	"pallet-timestamp",
+	"pallet-transaction-payment",
+	"pallet-transaction-payment-rpc-runtime-api",
+
+	"pallet-xcm",
+	"polkadot-parachain-primitives",
+	"polkadot-runtime-common",
+	"staging-xcm",
+	"staging-xcm-builder",
+	"staging-xcm-executor",
+
+	"cumulus-pallet-aura-ext",
+	"cumulus-pallet-session-benchmarking",
+	"cumulus-pallet-weight-reclaim",
+	"cumulus-pallet-xcm",
+	"cumulus-pallet-xcmp-queue",
+	"cumulus-primitives-aura",
+	"cumulus-primitives-core",
+	"cumulus-primitives-utility",
+	"pallet-collator-selection",
+	"parachains-common",
+	"staging-parachain-info",
+
+	"runtime",
+] }
+cumulus-pallet-parachain-system = { workspace = true }
+
+[build-dependencies]
+docify = { workspace = true }
+substrate-wasm-builder = { optional = true, workspace = true }
+
+[features]
+default = ["std"]
+std = [
+	"codec/std",
+	"cumulus-pallet-parachain-system/std",
+	"log/std",
+	"polkadot-sdk/std",
+	"scale-info/std",
+	"serde_json/std",
+	"substrate-wasm-builder",
+]
+runtime-benchmarks = [
+	"cumulus-pallet-parachain-system/runtime-benchmarks",
+	"polkadot-sdk/runtime-benchmarks",
+]
+try-runtime = [
+	"cumulus-pallet-parachain-system/try-runtime",
+	"polkadot-sdk/try-runtime",
+]
+metadata-hash = ["substrate-wasm-builder/metadata-hash"]

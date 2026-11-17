@@ -1,0 +1,27 @@
+[workspace]
+resolver = "2"
+members = ["runtime"]
+
+[workspace.package]
+authors = ["Polkadot Academy"]
+edition = "2021"
+license = "MIT-0"
+repository = "https://github.com/polkadot-academy/utn-pallet-workshop"
+
+[workspace.dependencies]
+# Everything from the Polkadot SDK comes from one pinned "umbrella" crate.
+# polkadot-stable2609-2 == polkadot-sdk 2609.3.0
+polkadot-sdk = { version = "2609.3.0", default-features = false }
+cumulus-pallet-parachain-system = { version = "0.32.0", default-features = false }
+substrate-wasm-builder = { version = "35.0.0" }
+
+codec = { package = "parity-scale-codec", version = "3.7.5", default-features = false, features = ["derive"] }
+scale-info = { version = "2.11.6", default-features = false, features = ["derive"] }
+serde_json = { version = "1.0.132", default-features = false, features = ["alloc"] }
+smallvec = { version = "1.11.0" }
+docify = { version = "0.2.9" }
+log = { version = "0.4.22", default-features = false }
+hex-literal = { version = "0.4.1" }
+
+[profile.release]
+panic = "unwind"
