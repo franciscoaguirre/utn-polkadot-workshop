@@ -1,0 +1,12 @@
+{
+  "version": 0,
+  "descriptorPath": ".papi/descriptors",
+  "entries": {
+    "workshop": {
+      "wsUrl": "ws://127.0.0.1:9944",
+      "metadata": ".papi/metadata/workshop.scale",
+      "genesis": "0x3c2f60b121e6e7f08035b7d5a6c5256fc04d23cf8fd745488b326f73e461b153",
+      "codeHash": "0x5c494b87e91e9134158860eee32cf99cc8c62d8364ba56cd6cc2502437a4070d"
+    }
+  }
+}

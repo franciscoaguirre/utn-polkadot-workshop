@@ -5,7 +5,8 @@
   "scripts": {
     "compile": "hardhat compile",
     "test": "hardhat test nodejs --network local",
-    "deploy": "hardhat run scripts/deploy.ts --network local"
+    "deploy": "hardhat run scripts/deploy.ts --network local",
+    "dao-vote": "hardhat run scripts/dao-vote.ts --network local"
   },
   "devDependencies": {
     "@nomicfoundation/hardhat-toolbox-viem": "^5.0.7",

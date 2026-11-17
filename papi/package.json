@@ -1,0 +1,25 @@
+{
+  "name": "workshop-papi",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "postinstall": "papi",
+    "papi:update": "papi update",
+    "watch": "tsx src/01-watch.ts",
+    "propose-and-vote": "tsx src/02-propose-and-vote.ts",
+    "upgrade": "tsx src/03-upgrade.ts",
+    "cancel": "tsx src/04-cancel.ts"
+  },
+  "dependencies": {
+    "@noble/hashes": "^2.4.0",
+    "@polkadot-api/descriptors": "file:.papi/descriptors",
+    "@polkadot-labs/hdkd": "^0.0.32",
+    "@polkadot-labs/hdkd-helpers": "^0.0.34",
+    "polkadot-api": "^3.3.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.20.5",
+    "tsx": "^4.23.15",
+    "typescript": "^5.9.3"
+  }
+}
