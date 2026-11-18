@@ -106,6 +106,8 @@
             pkgs.nodejs_22
             pkgs.curl
             pkgs.git
+            # Publishes the shared class chain (scripts/start-shared-chain.sh).
+            pkgs.cloudflared
           ]
           ++ (
             if hasPrebuilt pkgs then

@@ -167,22 +167,81 @@ npm run cancel
 > **Build broken?** Run the upgrade with the prebuilt solution instead:
 > `npm run upgrade -- ../solutions/runtime/workshop_runtime_v2_cancel.compact.compressed.wasm`
 
+### Together: the class chain
+
+So far everyone had their own chain. Your instructor also runs **one chain for the whole class**, so you can vote on the same proposals and join each other's DAOs. It runs the same runtime; only the addresses and accounts change.
+
+**1. Get an account.** The dev accounts (Alice, Hardhat's) aren't funded on the class chain, because their secret phrases are public.
+
+```bash
+cd papi
+npm run account                              # prints a new secret phrase: keep it private
+export MNEMONIC="<your 12 words>"
+npm run account                              # prints your two addresses
+```
+
+One phrase gives you a **Polkadot account** (for the PAPI scripts) and an **Ethereum account** (for Hardhat). Send **both** addresses to your instructor to get tokens.
+
+**2. Connect.** Your instructor shares two addresses. In **every** terminal (`papi/` and `contracts/`):
+
+```bash
+export NODE_URL="wss://…"        # Polkadot RPC
+export ETH_RPC_URL="https://…"   # Ethereum RPC
+export MNEMONIC="<your 12 words>"
+```
+
+To browse the chain, open the explorer link your instructor shares ([dev.papi.how](https://dev.papi.how)).
+
+**3. Govern together.**
+
+```bash
+cd papi
+npm run watch                              # the live view, now of everyone's votes
+npm run propose -- "Pizza for everyone"    # propose something (a harmless System.remark)
+npm run vote -- 3 aye 100                  # vote on proposal #3 with 100 tokens
+npm run unlock -- 3                        # after voting ends: take your tokens back
+```
+
+**4. Run a DAO with your classmates.** One of you deploys it, with the others' **Ethereum** addresses as members:
+
+```bash
+cd contracts
+MEMBERS=0xabc…,0xdef… TREASURY=50 npm run deploy:shared    # prints the DAO's address
+```
+
+Then every member votes inside the DAO, and once most have voted, anyone casts the DAO's vote:
+
+```bash
+DAO=0x… PROPOSAL_ID=3 VOTE=aye npm run dao-vote:shared
+DAO=0x… PROPOSAL_ID=3 CAST=1 npm run dao-vote:shared
+DAO=0x… PROPOSAL_ID=3 UNLOCK=1 npm run dao-vote:shared     # after voting ends
+```
+
+Your instructor will also run **one** runtime upgrade on the class chain for everyone to vote on. Only one runtime can be live, so you upgrade your own chain in Part 3, not this one.
+
 ### Stretch goals
 
-[`contracts/contracts/extras/`](contracts/contracts/extras) has two more contracts built on top of governance:
+[`contracts/contracts/extras/`](contracts/contracts/extras) has more contracts built on top of governance:
 
 - **PredictionMarket**: bet on whether a proposal passes. It settles by *reading* the pallet.
 - **VoteMarket**: pay people to vote a certain way, and check their vote on chain. What does this do to governance?
+- **FairDao**: your DAO from Part 2, with two of its problems to fix:
+  - The owner can remove a member who put tokens in the treasury, and the member loses them. Make `removeMember` refund what they put in.
+  - Anyone can cast the DAO's vote, with the **whole** treasury, as soon as **one** member has voted. Add a quorum: more than half of the members must have voted.
 
 Fill in their `TODO(stretch)` functions, then run `npm run test:extras` (about a minute).
 
-Something to think about: the pallet allows **one vote per account**. Why can't a contract let each of its members vote a different way? How would you change the pallet?
+Some things to think about:
+
+- The pallet allows **one vote per account**. Why can't a contract let each of its members vote a different way? How would you change the pallet?
+- FairDao's owner can still remove anyone, on their own. How would you make removing a member a decision of the members?
+- What happens to a removed member's vote on a proposal that's still open? And if the treasury is held by governance when a member is removed?
 
 ---
 
 ## Solutions
 
-[`solutions/`](solutions) has everything finished: `Dao.sol`, the extras, the `cancel` pallet code (`lib.rs` and `cancel.patch`), and a prebuilt v2 runtime. Try first!
+[`solutions/`](solutions) has everything finished: `Dao.sol`, the extras (including `FairDao.sol`), the `cancel` pallet code (`lib.rs` and `cancel.patch`), and a prebuilt v2 runtime. Try first!
 
 ## Troubleshooting
 
@@ -192,6 +251,8 @@ Something to think about: the pallet allows **one vote per account**. Why can't 
 | `✗ The chain rejected the code` | You forgot to bump `spec_version`, or it isn't higher than the running one. |
 | `Address already in use` | Another chain is still running: stop it (Ctrl+C) or `pkill polkadot-omni-node; pkill eth-rpc`. |
 | Hardhat says the DAO doesn't exist | The chain was restarted (fresh chain). Run `npm run deploy` again. |
+| `✗ Set your secret phrase first` | You're using a class-chain command: `export MNEMONIC="…"` in this terminal (see "Together: the class chain"). |
+| Class chain: `InsufficientBalance`, or Hardhat says the account has no funds | Your instructor hasn't funded that address yet. Check with `npm run account`. Remember to send **both** addresses. |
 | Watcher prints `Incompatible runtime entry` | The runtime was upgraded. Run `npm run papi:update`, then restart the watcher. |
 | Rust build doesn't work at all | Start the chain from the prebuilt runtime: `./scripts/start-chain.sh solutions/runtime/workshop_runtime_v1.compact.compressed.wasm`. You can still do Parts 0–2, and Part 3 with the prebuilt v2. |
 | Anything else | Check `logs/node.log` and `logs/eth-rpc.log`. |
@@ -204,7 +265,8 @@ pallets/governance/precompile/ the Solidity <-> pallet bridge, and IGovernance.s
 runtime/                       the chain's code: the pallets put together (based on the parachain template)
 contracts/                     Hardhat project: Dao.sol, extras, tests, deploy scripts
 papi/                          PAPI scripts: watch, propose-and-vote, upgrade, cancel
-scripts/                       setup.sh, check.sh, start-chain.sh
+papi/src/shared/               for the class chain: account, propose, vote, unlock, fund
+scripts/                       setup.sh, check.sh, start-chain.sh, start-shared-chain.sh
 solutions/                     the answers
 ```
 

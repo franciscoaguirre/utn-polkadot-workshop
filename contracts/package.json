@@ -6,8 +6,10 @@
     "compile": "hardhat compile",
     "test": "hardhat test nodejs --network local test/Dao.ts",
     "deploy": "hardhat run scripts/deploy.ts --network local",
+    "deploy:shared": "hardhat run scripts/deploy.ts --network shared",
     "dao-vote": "hardhat run scripts/dao-vote.ts --network local",
-    "test:extras": "hardhat test nodejs --network local test/Extras.ts"
+    "dao-vote:shared": "hardhat run scripts/dao-vote.ts --network shared",
+    "test:extras": "hardhat test nodejs --network local test/Extras.ts test/FairDao.ts"
   },
   "devDependencies": {
     "@nomicfoundation/hardhat-toolbox-viem": "^5.0.7",

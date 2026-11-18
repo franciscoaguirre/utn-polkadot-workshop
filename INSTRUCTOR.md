@@ -15,6 +15,49 @@ This is a 2-hour online workshop for UTN students. They know Solidity and Ethere
   - Write the cancel solution, bump `spec_version`, then build, `npm run upgrade` and `dao-vote`
   - `npm run papi:update`, then `npm run cancel`
 - [ ] Reset your repo afterwards (`git stash` or `git checkout .`) so you can live-code from the starting state.
+- [ ] If you'll use the class chain (next section): collect the students' addresses, write the config and rehearse it once with someone connecting from another network.
+
+## The class chain
+
+Besides everyone's own local chain, you can run **one chain for the whole class** on your machine, so students vote on the same proposals and join each other's DAOs (README: "Together: the class chain"). [`scripts/start-shared-chain.sh`](scripts/start-shared-chain.sh) runs the node and eth-rpc and publishes both through free Cloudflare quick tunnels. You don't need a server, a domain or open ports.
+
+How it differs from the local chain:
+
+- **No public keys.** Alice and the Hardhat accounts have public secret phrases, so they get nothing. The sudo key and every balance come from `shared-chain.config.json`, which isn't committed.
+- **It keeps its state** in `shared-chain-data/` across restarts. `--reset` starts it again from block 0, and every DAO address becomes invalid.
+- **Only safe RPC methods** are served (`--rpc-methods safe`), because the tunnel makes the RPC public.
+
+### Before the day
+
+1. Install `cloudflared` (`brew install cloudflared`; it's in the Nix shell too).
+2. Make your own account. Students do the same and send you their two addresses (Polkadot `5…` and Ethereum `0x…`):
+   ```bash
+   cd papi && npm run account                  # new secret phrase
+   MNEMONIC="…" npm run account                # its two addresses
+   ```
+3. Write the config. Give yourself the largest balance, so you can always outvote a bad proposal: governance runs anything as Root, including minting tokens or replacing the runtime. Equal balances for the students keep the token vote fair.
+   ```bash
+   cp shared-chain.config.example.json shared-chain.config.json   # then edit it
+   ```
+4. Start it once to check, with the runtime you'll use on the day:
+   ```bash
+   ./scripts/start-shared-chain.sh --runtime solutions/runtime/workshop_runtime_v1.compact.compressed.wasm
+   ```
+   Ports 9944 and 8545 are the same as the local chain's, so you can't run both at once. Students run their local chains on their own machines, so that only matters for you: stop your local chain before starting the class chain.
+
+### On the day
+
+- Start it. It prints the two public URLs and an explorer link ([dev.papi.how](https://dev.papi.how)), and saves the text for students in `shared-chain-data/for-students.txt`. **The URLs change every time the script starts**, so share them on the day.
+- Late student? Fund them on the running chain. It sets the balance, it doesn't add to it:
+  ```bash
+  cd papi && MNEMONIC="<your phrase>" npm run fund -- 5Abc… 1000 0xabc… 1000
+  ```
+  Editing the config afterwards does nothing to a running chain. The script warns you about that.
+- **The class upgrade.** Students upgrade their *own* chain in Part 3; only one runtime can be live on the class chain. Run one upgrade there for everyone to vote on. With `MNEMONIC` set, `npm run upgrade` makes you the proposer and doesn't vote for you, so vote yourself from another terminal:
+  ```bash
+  cd papi && MNEMONIC="<your phrase>" NODE_URL=ws://127.0.0.1:9944 npm run upgrade -- ../solutions/runtime/workshop_runtime_v2_cancel.compact.compressed.wasm
+  ```
+- Keep the laptop awake and plugged in (`caffeinate -dis` on macOS), on a cable if you can. If your machine sleeps, the class loses the chain.
 
 ## Agenda (120 min)
 
@@ -24,7 +67,7 @@ This is a 2-hour online workshop for UTN students. They know Solidity and Ethere
 | 0:10–0:35 | **1. Kernel space** | Guided read of `pallets/governance/src/lib.rs` with the Solidity↔FRAME table (README). Stop at the three 🔑 lines. Run `propose-and-vote`. | Read along, run the script, watch the hook enact the proposal. |
 | 0:35–1:05 | **2. User space** | Show `IGovernance.sol` and the precompile address. Explain that it's not a contract and calls go into Rust. Live-code `vote` together, then let them do `castVote`. | Fill in `Dao.sol`, `npm test`, `npm run deploy`. |
 | 1:05–1:45 | **3. Change the kernel** | Live-code `cancel` step by step: status → event → error → call. Then build, upgrade, DAO vote, and the 🚀 moment. | Same. Anyone with a broken build uses the prebuilt v2. |
-| 1:45–2:00 | **Wrap-up** | Recap the kernel/user split. Discuss the one-vote-per-account limit and VoteMarket (bribes). Point to the stretch goals. | Questions; stretch goals at home. |
+| 1:45–2:00 | **Wrap-up** | Recap the kernel/user split. Discuss the one-vote-per-account limit and VoteMarket (bribes). Point to the stretch goals, including FairDao (the Part 2 DAO's flaws). If you run the class chain, this is where the class votes together. | Questions; stretch goals at home. |
 
 The time sink is **Part 3's build**. An incremental runtime rebuild after the pallet change took about 35 s on a 128-core build server; expect several minutes on a laptop, and time it on yours when you rehearse. Start the build first, and explain `apply_authorized_upgrade` while it compiles.
 

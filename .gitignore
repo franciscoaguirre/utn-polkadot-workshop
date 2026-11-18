@@ -8,3 +8,5 @@ dao-address.json
 result
 result-*
 .direnv/
+shared-chain.config.json
+shared-chain-data/

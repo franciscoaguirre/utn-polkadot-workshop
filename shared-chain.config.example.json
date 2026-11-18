@@ -1,0 +1,10 @@
+{
+  "name": "UTN workshop",
+  "sudo": "<your Polkadot address, 5…>",
+  "balances": {
+    "<your Polkadot address, 5…>": 1000000,
+    "<your Ethereum address, 0x…>": 1000000,
+    "<a student's Polkadot address, 5…>": 1000,
+    "<the same student's Ethereum address, 0x…>": 1000
+  }
+}

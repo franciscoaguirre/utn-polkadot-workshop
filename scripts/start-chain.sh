@@ -66,6 +66,6 @@ echo
 echo "✅ Chain is running."
 echo "   Polkadot RPC (PAPI):    ws://127.0.0.1:9944"
 echo "   Ethereum RPC (Hardhat): http://127.0.0.1:8545"
-echo "   Explorer: https://polkadot.js.org/apps/?rpc=ws%3A%2F%2F127.0.0.1%3A9944#/explorer"
+echo "   Explorer: https://dev.papi.how/explorer#networkId=custom&endpoint=ws%3A%2F%2F127.0.0.1%3A9944"
 echo "   Press Ctrl+C to stop."
 wait "$node_pid"

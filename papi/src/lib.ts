@@ -15,12 +15,14 @@ export const api = client.getTypedApi(workshop);
 
 // ----------------------------------------------------------------------------- accounts
 
-const derive = sr25519CreateDerive(entropyToMiniSecret(mnemonicToEntropy(DEV_PHRASE)));
+const deriveFrom = (phrase: string) => sr25519CreateDerive(entropyToMiniSecret(mnemonicToEntropy(phrase)));
+const derive = deriveFrom(DEV_PHRASE);
 const accountIdCodec = AccountId();
 
-/** A well-known dev account (//Alice, //Bob, ...) that can sign transactions. */
-function devAccount(name: string) {
-  const keyPair = derive(`//${name}`);
+type KeyPair = ReturnType<typeof derive>;
+export type Account = ReturnType<typeof keyAccount>;
+
+function keyAccount(name: string, keyPair: KeyPair) {
   return {
     name,
     address: accountIdCodec.dec(keyPair.publicKey),
@@ -28,11 +30,52 @@ function devAccount(name: string) {
   };
 }
 
+/** A well-known dev account (//Alice, //Bob, ...) that can sign transactions. */
+const devAccount = (name: string) => keyAccount(name, derive(`//${name}`));
+
 export const alice = devAccount("Alice");
 export const bob = devAccount("Bob");
 export const charlie = devAccount("Charlie");
 /** Not funded at genesis: a clean slate for demos. */
 export const lucky = devAccount("Lucky");
+
+/**
+ * You, on the shared class chain: the account of the secret phrase in the MNEMONIC environment
+ * variable (create one with `npm run account`). Hardhat uses the same phrase for your Ethereum
+ * account. For local tests, MNEMONIC can also be a dev account like `//Alice`.
+ */
+export const me = (() => {
+  const phrase = process.env.MNEMONIC?.trim();
+  if (!phrase) return undefined;
+  if (phrase.startsWith("//")) return devAccount(phrase.slice(2));
+  try {
+    return keyAccount("You", deriveFrom(phrase)(""));
+  } catch {
+    console.error("✗ MNEMONIC isn't a valid secret phrase. Check that you copied all 12 words.");
+    process.exit(1);
+  }
+})();
+
+/** `me`, or stop the script with a hint if MNEMONIC isn't set. */
+export function requireMe(): Account {
+  if (me) return me;
+  console.error('✗ Set your secret phrase first:  export MNEMONIC="word1 word2 …"');
+  console.error("  No account yet? Create one with `npm run account`.");
+  process.exit(1);
+}
+
+/**
+ * An account typed by a person: a Polkadot address (5…), or an Ethereum address (0x…),
+ * which becomes its Polkadot account.
+ */
+export function parseAddress(text: string): string {
+  if (/^0x[0-9a-fA-F]{40}$/.test(text)) return ethToPolkadot(text);
+  try {
+    return accountIdCodec.dec(accountIdCodec.enc(text));
+  } catch {
+    throw new Error(`"${text}" is neither a Polkadot address (5…) nor an Ethereum address (0x…)`);
+  }
+}
 
 /**
  * An Ethereum address (a contract, or a Hardhat account) as a Polkadot account:
@@ -55,6 +98,7 @@ const names = new Map([alice, bob, charlie, lucky].map((a) => [a.address, a.name
 /** A short, human name for an account. */
 export function who(address: string): string {
   if (names.has(address)) return names.get(address)!;
+  if (address === me?.address) return "you";
   if (address === daoAccount()) return "DAO";
   return `${address.slice(0, 6)}…${address.slice(-4)}`;
 }
