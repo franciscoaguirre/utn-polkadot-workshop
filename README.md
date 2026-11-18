@@ -49,6 +49,14 @@ If `check.sh` shows a ❌ you can't fix, ask for help **before** the workshop.
 
 > **Low on RAM?** If the build gets killed, limit parallelism: `CARGO_BUILD_JOBS=2 ./scripts/setup.sh`.
 
+> **On NixOS, or using Nix?** You don't need rustup or the packages above. The flake gives you the pinned Rust toolchain, Node.js 22 and the Polkadot binaries, patched to run on NixOS. It needs flakes enabled (`experimental-features = nix-command flakes`).
+>
+> ```bash
+> nix develop           # enter the workshop shell; use it for every terminal
+> ./scripts/setup.sh    # skips the Rust and binary steps, builds the runtime
+> ./scripts/check.sh
+> ```
+
 ---
 
 ## During the workshop

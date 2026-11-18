@@ -13,12 +13,16 @@ cd "$ROOT"
 step() { echo; echo "━━ $*"; }
 
 step "1/4 Rust"
-if ! command -v rustup > /dev/null; then
+if command -v rustup > /dev/null; then
+  # rust-toolchain.toml pins the version, the wasm target and rust-src; this installs them.
+  rustup show active-toolchain > /dev/null 2>&1 || rustup toolchain install
+elif [[ -n "${IN_NIX_SHELL:-}" ]] && command -v rustc > /dev/null; then
+  echo "Using the toolchain from the Nix shell (flake.nix)."
+else
   echo "Rust is not installed. Install it from https://rustup.rs, open a new terminal, and re-run this script."
+  echo "(On Nix/NixOS, run \`nix develop\` first instead.)"
   exit 1
 fi
-# rust-toolchain.toml pins the version, the wasm target and rust-src; this installs them.
-rustup show active-toolchain > /dev/null 2>&1 || rustup toolchain install
 rustc --version
 
 step "2/4 Polkadot binaries ($SDK_RELEASE)"
@@ -31,6 +35,10 @@ mkdir -p "$BIN"
 for tool in polkadot-omni-node eth-rpc chain-spec-builder; do
   if [[ -x "$BIN/$tool" ]] && "$BIN/$tool" --version > /dev/null 2>&1; then
     echo "✓ $tool already in bin/"
+    continue
+  fi
+  if command -v "$tool" > /dev/null && "$tool" --version > /dev/null 2>&1; then
+    echo "✓ $tool already installed ($(command -v "$tool"))"
     continue
   fi
   if [[ "$suffix" == "unsupported" ]]; then

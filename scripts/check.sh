@@ -19,7 +19,7 @@ node_major() { node -e 'process.exit(Number(process.versions.node.split(".")[0])
 
 echo "Tools"
 check "Rust toolchain from rust-toolchain.toml"        rustc --version
-check "wasm32v1-none target installed"                 bash -c 'rustup target list --installed | grep -q wasm32v1-none'
+check "wasm32v1-none target installed"                 bash -c 'test -d "$(rustc --print sysroot)/lib/rustlib/wasm32v1-none"'
 check "Node.js 22 or newer"                            node_major
 check "polkadot-omni-node runs"                        polkadot-omni-node --version
 check "eth-rpc runs"                                   eth-rpc --version
