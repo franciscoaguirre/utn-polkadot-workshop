@@ -62,9 +62,9 @@ describe("FairDao", async () => {
     // 2 of 3 voted: anyone may cast it now, the outcome is decided.
     await wait(await dao.write.vote([id, true], { account: second.account }));
     await wait(await dao.write.castVote([id]));
-    assert.equal(await balanceOf(dao.address), 0n);
+    assert.ok((await balanceOf(dao.address)) < parseEther("0.01"));
 
-    // The treasury is held by governance, so a refund has to wait for `unlock`.
-    await assert.rejects(dao.write.removeMember([third.account.address]), /treasury is held/);
+    // The treasury is frozen by governance, so a refund has to wait for `unlock`.
+    await assert.rejects(dao.write.removeMember([third.account.address]), /treasury is frozen/);
   });
 });

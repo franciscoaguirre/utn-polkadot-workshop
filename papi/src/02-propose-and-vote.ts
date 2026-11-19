@@ -22,7 +22,7 @@ report("Alice proposed", proposed);
 const [{ payload: { id, end } }] = api.event.Governance.Proposed.filter(proposed.events);
 console.log(`  → proposal #${id}, voting ends at block #${end}\n`);
 
-// 3. Vote. Each vote puts a hold on the voter's tokens.
+// 3. Vote. Each vote freezes the voter's tokens (in their own account) until they unlock.
 for (const [voter, aye, amount] of [
   [alice, true, tokens(50)],
   [bob, true, tokens(100)],
@@ -35,7 +35,7 @@ for (const [voter, aye, amount] of [
 }
 
 const bobBalance = await balanceOf(bob.address);
-console.log(`\nBob's tokens are still his, but held: free ${fmt(bobBalance.free)}, held ${fmt(bobBalance.reserved)}`);
+console.log(`\nBob's tokens are still his, but frozen: free ${fmt(bobBalance.free)}, frozen ${fmt(bobBalance.frozen)}`);
 
 // 4. Nobody needs to do anything now: the pallet's hook closes the vote at block `end`.
 console.log(`\nWaiting for block #${end}… (the hook will enact the result, no transaction needed)`);

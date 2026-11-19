@@ -1,6 +1,6 @@
 --- a/pallets/governance/src/lib.rs
 +++ b/pallets/governance/src/lib.rs
-@@ -34,9 +34,8 @@
+@@ -41,9 +41,8 @@
  mod mock;
  #[cfg(test)]
  mod tests;
@@ -12,7 +12,7 @@
  
  #[frame::pallet]
  pub mod pallet {
-@@ -111,7 +110,8 @@
+@@ -121,7 +120,8 @@
  		Approved,
  		/// Not more ayes than nays: the call was not dispatched.
  		Rejected,
@@ -22,9 +22,9 @@
  	}
  
  	#[derive(
-@@ -191,7 +191,8 @@
+@@ -212,7 +212,8 @@
  		Rejected { id: ProposalId },
- 		/// A voter got their tokens back.
+ 		/// A voter's vote no longer freezes their tokens.
  		Unlocked { id: ProposalId, voter: T::AccountId, amount: BalanceOf<T> },
 -		// TODO(workshop, part 3): add a `Cancelled { id: ProposalId }` event here.
 +		/// The proposer cancelled a proposal.
@@ -32,7 +32,7 @@
  	}
  
  	#[pallet::error]
-@@ -214,7 +215,8 @@
+@@ -239,7 +240,8 @@
  		NoVote,
  		/// The stored call could not be decoded (e.g. the runtime changed under it).
  		UndecodableCall,
@@ -42,7 +42,7 @@
  	}
  
  	// -------------------------------------------------------------------------------------
-@@ -302,24 +304,24 @@
+@@ -355,24 +357,24 @@
  			Ok(())
  		}
  

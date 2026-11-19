@@ -20,7 +20,8 @@ use codec::DecodeLimit;
 use core::{marker::PhantomData, num::NonZero};
 use frame::{
 	deps::frame_support::weights::Weight,
-	prelude::{frame_system, DispatchError, Get, SaturatedConversion},
+	prelude::{frame_system, DispatchError, Get, SaturatedConversion, Saturating},
+	traits::fungible::Inspect,
 };
 use pallet_governance::{BalanceOf, ProposalId, Proposals, RuntimeCallOf, Votes};
 use pallet_revive::{
@@ -73,7 +74,7 @@ where
 				Ok(IGovernance::proposeCall::abi_encode_returns(&id))
 			},
 			IGovernanceCalls::vote(IGovernance::voteCall { id, aye, amount }) => {
-				charge(env, Weight::from_parts(30_000_000, 4_000) + db.reads_writes(4, 4))?;
+				charge(env, Weight::from_parts(30_000_000, 4_000) + db.reads_writes(5, 5))?;
 				ensure_mutable(env)?;
 				let who = caller::<T>(env)?;
 				let amount = wei_to_native::<T>(amount)?;
@@ -88,7 +89,11 @@ where
 				Ok(Vec::new())
 			},
 			IGovernanceCalls::unlock(IGovernance::unlockCall { id }) => {
-				charge(env, Weight::from_parts(25_000_000, 4_000) + db.reads_writes(3, 2))?;
+				let max_votes = <T as pallet_governance::Config>::MaxVotesPerAccount::get() as u64;
+				charge(
+					env,
+					Weight::from_parts(25_000_000, 4_000) + db.reads_writes(4 + max_votes, 4),
+				)?;
 				ensure_mutable(env)?;
 				let who = caller::<T>(env)?;
 
@@ -140,6 +145,17 @@ where
 					},
 				};
 				Ok(IGovernance::voteOfCall::abi_encode_returns(&result))
+			},
+			IGovernanceCalls::votingBalance(IGovernance::votingBalanceCall { who }) => {
+				charge(env, db.reads(1))?;
+				let who = env.to_account_id(&H160::from_slice(who.as_slice()));
+				// What `who` could spend if nothing were frozen: its free balance minus the
+				// existential deposit. Frozen tokens count, because freezes overlap.
+				let free = <T as pallet_governance::Config>::Currency::balance(&who);
+				let existential_deposit =
+					<T as pallet_governance::Config>::Currency::minimum_balance();
+				let balance = free.saturating_sub(existential_deposit);
+				Ok(IGovernance::votingBalanceCall::abi_encode_returns(&native_to_wei::<T>(balance)))
 			},
 			IGovernanceCalls::nextProposalId(_) => {
 				charge(env, db.reads(1))?;

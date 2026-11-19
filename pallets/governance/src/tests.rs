@@ -1,11 +1,14 @@
 //! Unit tests for the governance pallet.
 //! Run them with: `cargo test -p pallet-governance`
 
-use crate::{mock::*, EndingAt, Error, Event, HoldReason, Proposals, Status, Vote, Votes};
+use crate::{mock::*, EndingAt, Error, Event, FreezeReason, Proposals, Status, Vote, VotedOn, Votes};
 use frame::{
 	deps::sp_io,
 	testing_prelude::*,
-	traits::fungible::{Inspect, InspectHold},
+	traits::{
+		fungible::{Inspect, InspectFreeze, Mutate},
+		tokens::{Fortitude, Preservation},
+	},
 };
 
 /// A storage key that only Root can write, through `System::set_storage`.
@@ -22,8 +25,13 @@ fn stored_value() -> Option<Vec<u8>> {
 	sp_io::storage::get(KEY).map(|bytes| bytes.to_vec())
 }
 
-fn held(who: u64) -> u64 {
-	Balances::balance_on_hold(&HoldReason::Vote.into(), &who)
+fn frozen(who: u64) -> u64 {
+	Balances::balance_frozen(&FreezeReason::Vote.into(), &who)
+}
+
+/// What `who` can still transfer away: frozen tokens don't count.
+fn spendable(who: u64) -> u64 {
+	Balances::reducible_balance(&who, Preservation::Expendable, Fortitude::Polite)
 }
 
 fn last_event() -> RuntimeEvent {
@@ -77,7 +85,7 @@ fn too_many_proposals_ending_in_the_same_block_is_rejected() {
 }
 
 #[test]
-fn vote_holds_tokens_and_updates_the_tally() {
+fn vote_freezes_tokens_and_updates_the_tally() {
 	new_test_ext().execute_with(|| {
 		assert_ok!(Governance::propose(RuntimeOrigin::signed(ALICE), set_storage_call(b"hi")));
 
@@ -89,9 +97,13 @@ fn vote_holds_tokens_and_updates_the_tally() {
 		assert_eq!(Votes::<Test>::get(0, BOB), Some(Vote { aye: true, amount: 300 }));
 
 		// The tokens never leave Bob's account, but he can't spend them.
-		assert_eq!(held(BOB), 300);
+		assert_eq!(frozen(BOB), 300);
 		assert_eq!(Balances::total_balance(&BOB), INITIAL);
-		assert_eq!(Balances::balance(&BOB), INITIAL - 300);
+		assert_eq!(spendable(BOB), INITIAL - 300);
+		assert_noop!(
+			Balances::transfer(&BOB, &ALICE, INITIAL - 299, Preservation::Expendable),
+			TokenError::Frozen
+		);
 
 		assert_eq!(
 			last_event(),
@@ -127,9 +139,80 @@ fn cannot_vote_with_more_than_you_have() {
 	new_test_ext().execute_with(|| {
 		assert_ok!(Governance::propose(RuntimeOrigin::signed(ALICE), set_storage_call(b"hi")));
 		assert_noop!(
-			Governance::vote(RuntimeOrigin::signed(BOB), 0, true, INITIAL * 2),
-			TokenError::FundsUnavailable
+			Governance::vote(RuntimeOrigin::signed(BOB), 0, true, INITIAL + 1),
+			Error::<Test>::InsufficientBalance
 		);
+	});
+}
+
+#[test]
+fn the_same_tokens_can_vote_on_many_proposals_at_once() {
+	new_test_ext().execute_with(|| {
+		assert_ok!(Governance::propose(RuntimeOrigin::signed(ALICE), set_storage_call(b"a")));
+		assert_ok!(Governance::propose(RuntimeOrigin::signed(ALICE), set_storage_call(b"b")));
+
+		// Bob votes with *all* his tokens on both proposals.
+		assert_ok!(Governance::vote(RuntimeOrigin::signed(BOB), 0, true, INITIAL));
+		assert_ok!(Governance::vote(RuntimeOrigin::signed(BOB), 1, false, INITIAL));
+
+		assert_eq!(Proposals::<Test>::get(0).unwrap().ayes, INITIAL);
+		assert_eq!(Proposals::<Test>::get(1).unwrap().nays, INITIAL);
+		// Freezes overlap: the frozen amount is the biggest vote, not the sum.
+		assert_eq!(frozen(BOB), INITIAL);
+		assert_eq!(VotedOn::<Test>::get(BOB).into_inner(), vec![0, 1]);
+	});
+}
+
+#[test]
+fn unlock_keeps_frozen_what_other_votes_still_need() {
+	new_test_ext().execute_with(|| {
+		// Proposal 0 ends first; proposal 1 ends 2 blocks later.
+		assert_ok!(Governance::propose(RuntimeOrigin::signed(ALICE), set_storage_call(b"a")));
+		run_to_block(3);
+		assert_ok!(Governance::propose(RuntimeOrigin::signed(ALICE), set_storage_call(b"b")));
+
+		assert_ok!(Governance::vote(RuntimeOrigin::signed(BOB), 0, true, 500));
+		assert_ok!(Governance::vote(RuntimeOrigin::signed(BOB), 1, true, 200));
+		assert_eq!(frozen(BOB), 500);
+
+		// Proposal 0 is over: unlocking it shrinks the freeze to the vote that is left.
+		run_to_block(1 + VOTING_PERIOD);
+		assert_ok!(Governance::unlock(RuntimeOrigin::signed(BOB), 0));
+		assert_eq!(frozen(BOB), 200);
+		assert_eq!(spendable(BOB), INITIAL - 200);
+		assert_eq!(VotedOn::<Test>::get(BOB).into_inner(), vec![1]);
+
+		// Proposal 1 is over too: nothing is frozen any more.
+		run_to_block(3 + VOTING_PERIOD);
+		assert_ok!(Governance::unlock(RuntimeOrigin::signed(BOB), 1));
+		assert_eq!(frozen(BOB), 0);
+		assert_eq!(spendable(BOB), INITIAL);
+		assert!(!VotedOn::<Test>::contains_key(BOB));
+	});
+}
+
+#[test]
+fn an_account_can_have_at_most_max_votes_per_account_votes() {
+	new_test_ext().execute_with(|| {
+		// MaxVotesPerAccount is 3 and MaxProposalsPerBlock is 2 in the mock.
+		for id in 0..4 {
+			if id == 2 {
+				run_to_block(2);
+			}
+			assert_ok!(Governance::propose(RuntimeOrigin::signed(ALICE), set_storage_call(b"x")));
+			if id < 3 {
+				assert_ok!(Governance::vote(RuntimeOrigin::signed(BOB), id, true, 10));
+			}
+		}
+		assert_noop!(
+			Governance::vote(RuntimeOrigin::signed(BOB), 3, true, 10),
+			Error::<Test>::TooManyVotes
+		);
+
+		// Unlocking a vote makes room for a new one.
+		run_to_block(1 + VOTING_PERIOD);
+		assert_ok!(Governance::unlock(RuntimeOrigin::signed(BOB), 0));
+		assert_ok!(Governance::vote(RuntimeOrigin::signed(BOB), 3, true, 10));
 	});
 }
 
@@ -218,7 +301,7 @@ fn voting_after_the_deadline_fails() {
 }
 
 #[test]
-fn unlock_releases_tokens_only_after_the_vote_ends() {
+fn unlock_thaws_tokens_only_after_the_vote_ends() {
 	new_test_ext().execute_with(|| {
 		assert_ok!(Governance::propose(RuntimeOrigin::signed(ALICE), set_storage_call(b"hi")));
 		assert_ok!(Governance::vote(RuntimeOrigin::signed(BOB), 0, true, 300));
@@ -230,8 +313,8 @@ fn unlock_releases_tokens_only_after_the_vote_ends() {
 
 		run_to_block(1 + VOTING_PERIOD);
 		assert_ok!(Governance::unlock(RuntimeOrigin::signed(BOB), 0));
-		assert_eq!(held(BOB), 0);
-		assert_eq!(Balances::balance(&BOB), INITIAL);
+		assert_eq!(frozen(BOB), 0);
+		assert_eq!(spendable(BOB), INITIAL);
 		assert_eq!(Votes::<Test>::get(0, BOB), None);
 		assert_eq!(last_event(), Event::Unlocked { id: 0, voter: BOB, amount: 300 }.into());
 

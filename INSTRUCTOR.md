@@ -2,7 +2,7 @@
 
 This is a 2-hour online workshop for UTN students. They know Solidity and Ethereum, are new to Polkadot, and don't know Rust. They already had the lecture on Substrate, on pallets (kernel space) vs contracts (user space), and on Polkadot's architecture. This workshop makes that split something they *do*.
 
-**The one idea to land:** a pallet is part of the chain itself. It can hold tokens inside users' accounts, run code every block with no transaction, and act as Root. A contract can't do any of that. Contracts build products *on top of* what pallets provide, and the bridge between the two is a precompile. And because the runtime is just code the chain stores, the chain can vote to replace it while it keeps running.
+**The one idea to land:** a pallet is part of the chain itself. It can freeze tokens inside users' accounts, run code every block with no transaction, and act as Root. A contract can't do any of that. Contracts build products *on top of* what pallets provide, and the bridge between the two is a precompile. And because the runtime is just code the chain stores, the chain can vote to replace it while it keeps running.
 
 ## Before the session
 
@@ -75,7 +75,8 @@ The time sink is **Part 3's build**. An incremental runtime rebuild after the pa
 
 **Part 1 — the pallet**
 - Storage, calls, events and errors map one-to-one onto Solidity concepts (see the table in the README).
-- **Holds:** `T::Currency::hold` locks tokens *in the voter's own account*. A Solidity contract would have to take custody of them. Show "free vs held" in the script output.
+- **Freezes:** `T::Currency::extend_freeze` freezes tokens *in the voter's own account*. A Solidity contract would have to take custody of them. Show "free vs frozen" in the script output.
+- **Freezes, not holds:** like OpenGov, a vote freezes tokens rather than holding them. Holds set tokens aside for one purpose and add up. Freezes overlap: the account keeps only its *biggest* vote frozen, so the same tokens can vote on many proposals at once. `unlock` shrinks the freeze to the biggest vote that's left (that's what the `VotedOn` storage is for).
 - **Hooks:** `on_initialize` runs at the start of every block. On Ethereum you'd need a keeper bot (Chainlink Automation, Gelato).
 - **Root:** `close` dispatches any call as the superuser. That's how `Balances.force_set_balance` can create tokens.
 - **Weights** are the "gas" of pallets. Real pallets benchmark them; we use fixed numbers.
@@ -85,7 +86,7 @@ The time sink is **Part 3's build**. An incremental runtime rebuild after the pa
 - The address `0x…09000000` has no bytecode. pallet-revive sees the call and runs Rust (`pallets/governance/precompile/src/lib.rs`).
 - `msg.sender` inside the pallet is the **DAO contract's account**. Every Ethereum address maps to a Polkadot account: the address followed by 12 bytes of `0xEE`.
 - Amounts are in wei (18 decimals) for Solidity. The precompile converts them to the native token's 12 decimals.
-- The test checks that the DAO's balance drops to 0 after `castVote`: the tokens are held, not gone.
+- The test checks that the DAO's balance drops to about 0 after `castVote`: the tokens are frozen, not gone. A second test votes with the same treasury on two proposals at once, which works because freezes overlap. Point out `votingBalance`: Solidity's `address(this).balance` doesn't count frozen tokens.
 - The DAO mixes two voting systems. Inside, it's a whitelist with one person, one vote. Outside, governance counts tokens. Ask the students: is it fair that a 2-vs-1 split inside the DAO puts the **whole** treasury on one side? What would a fairer DAO do?
 
 **Part 3 — the upgrade**
@@ -107,7 +108,7 @@ The time sink is **Part 3's build**. An incremental runtime rebuild after the pa
 ## Known limits (good discussion material)
 
 - **One vote per account per proposal.** That's why a contract can't vote different directions for different members (no "delegation" contract in the extras).
-- **Holds don't overlap across proposals.** Tokens held for proposal A can't also vote on proposal B until they're unlocked, so the DAO votes on B with only what's left in its treasury. OpenGov uses *locks*, which overlap, to avoid this.
+- **Votes per account are capped.** `unlock` has to look at every other vote of the account to work out the new freeze, so `MaxVotesPerAccount` (64 in the runtime) keeps it bounded. OpenGov has the same kind of limit (`MaxVotes`).
 - **Unbounded dispatch in the hook.** `on_initialize` runs passed calls without pre-checking that they fit in the block. That's fine for a workshop, not for production.
 
 ## Technical facts (verified while building this repo)

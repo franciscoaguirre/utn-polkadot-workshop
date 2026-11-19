@@ -32,7 +32,7 @@ async function describeEvent(event: { type: string; value: any }): Promise<strin
     case "Proposed":
       return `📜 #${value.id} proposed by ${who(value.proposer)}, voting ends at block #${value.end}`;
     case "Voted":
-      return `🗳  #${value.id}: ${who(value.voter)} voted ${value.aye ? "AYE" : "NAY"} with ${fmt(value.amount)} (now held)`;
+      return `🗳  #${value.id}: ${who(value.voter)} voted ${value.aye ? "AYE" : "NAY"} with ${fmt(value.amount)} (now frozen)`;
     case "Approved":
       return `✅ #${value.id} APPROVED, call dispatched as Root: ${value.result.success ? "ok" : `failed ${JSON.stringify(value.result.value)}`}`;
     case "Rejected":

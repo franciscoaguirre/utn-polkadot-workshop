@@ -8,16 +8,14 @@ import {IGovernance, GOVERNANCE_ADDRESS} from "./IGovernance.sol";
 /// - Membership is a whitelist kept by the owner (whoever deployed the DAO).
 /// - Inside the DAO it's one person, one vote: every member counts the same.
 /// - The DAO has a treasury that anyone can fund. When the DAO casts its vote in governance,
-///   it votes with its whole (spendable) treasury, in the direction most members chose.
+///   it votes with its whole treasury, in the direction most members chose. Governance freezes
+///   the tokens it votes with, and freezes overlap, so the DAO can vote with the same treasury
+///   on many proposals at once.
 ///
 /// The DAO lives in user space (a contract). The governance it votes in lives in kernel space
 /// (a pallet). The bridge between them is the precompile at GOVERNANCE_ADDRESS.
 contract Dao {
     IGovernance constant GOVERNANCE = IGovernance(GOVERNANCE_ADDRESS);
-
-    /// The native token has 12 decimals and Solidity amounts have 18, so governance only accepts
-    /// multiples of 10^6 wei.
-    uint256 constant WEI_PER_NATIVE_UNIT = 1e6;
 
     address public owner;
     mapping(address => bool) public isMember;
@@ -101,13 +99,15 @@ contract Dao {
         //   1. Require the vote wasn't cast already, and that ayes != nays ("no majority").
         //   2. Mark the ballot as cast.
         //   3. The DAO votes in the direction most members chose, with its whole treasury:
-        //        uint256 amount = address(this).balance - (address(this).balance % WEI_PER_NATIVE_UNIT);
+        //        uint256 amount = GOVERNANCE.votingBalance(address(this));
         //      (require amount > 0), then call GOVERNANCE.vote(id, aye, amount).
+        //      Why not `address(this).balance`? It leaves out frozen tokens, so after the DAO's
+        //      first vote it would be ~0. Freezes overlap: the same tokens can vote again.
         //      This line is the user-space -> kernel-space call!
         //   4. emit VoteCast(id, aye, amount);
     }
 
-    /// After voting ended, release the DAO's held tokens. Anyone can call this.
+    /// After voting ended, stop that vote from freezing the DAO's tokens. Anyone can call this.
     function unlock(uint32 id) external {
         GOVERNANCE.unlock(id);
     }

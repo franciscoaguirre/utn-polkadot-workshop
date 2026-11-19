@@ -85,7 +85,7 @@ Open [`pallets/governance/src/lib.rs`](pallets/governance/src/lib.rs). It's writ
 | `#[pallet::call]` `propose`, `vote`, `unlock` | `external` functions |
 | `ensure_signed(origin)?` | `msg.sender` |
 | `ensure!(…, Error::<T>::…)` | `require` with a custom error |
-| `T::Currency::hold(…)` in `vote` | 🔑 locking tokens **inside the voter's own account**, with no escrow |
+| `T::Currency::extend_freeze(…)` in `vote` | 🔑 freezing tokens **inside the voter's own account**, with no escrow |
 | `on_initialize` in `#[pallet::hooks]` | 🔑 code that runs **every block, with nobody sending a transaction** |
 | `call.dispatch(RawOrigin::Root.into())` in `close` | 🔑 running any call **as the superuser** |
 
@@ -117,7 +117,9 @@ It talks to the pallet through [`IGovernance.sol`](contracts/contracts/IGovernan
    npm run deploy
    ```
 
-The test checks that the DAO's balance goes to **0** after it votes. The tokens are still in the DAO's account, but held by the pallet until `unlock`.
+The test checks that the DAO's balance drops to about **0** after it votes. The tokens are still in the DAO's account, but frozen by the pallet until `unlock`.
+
+Like OpenGov, the pallet uses **freezes**, not holds, and freezes overlap: an account only has to keep its *biggest* vote frozen, however many proposals it voted on. So the DAO can vote with its whole treasury on every open proposal at once. That's also why `castVote` asks the precompile for `votingBalance` instead of using `address(this).balance`, which leaves frozen tokens out.
 
 ### Part 3: change the kernel (35 min)
 
@@ -235,7 +237,7 @@ Some things to think about:
 
 - The pallet allows **one vote per account**. Why can't a contract let each of its members vote a different way? How would you change the pallet?
 - FairDao's owner can still remove anyone, on their own. How would you make removing a member a decision of the members?
-- What happens to a removed member's vote on a proposal that's still open? And if the treasury is held by governance when a member is removed?
+- What happens to a removed member's vote on a proposal that's still open? And if the treasury is frozen by governance when a member is removed?
 
 ---
 

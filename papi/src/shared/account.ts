@@ -32,7 +32,7 @@ if (!phrase) {
   console.log(`\nBalances on ${NODE_URL}:`);
   const show = async (label: string, address: string) => {
     const { data } = await api.query.System.Account.getValue(address);
-    console.log(`  ${label}: free ${fmt(data.free)}, held ${fmt(data.reserved)}`);
+    console.log(`  ${label}: free ${fmt(data.free)}, frozen ${fmt(data.frozen)}`);
   };
   const showAll = async () => {
     await show("Polkadot", me!.address);

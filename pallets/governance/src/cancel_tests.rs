@@ -2,8 +2,8 @@
 //! Enable them by uncommenting `mod cancel_tests;` in `lib.rs`, then run:
 //! `cargo test -p pallet-governance`
 
-use crate::{mock::*, EndingAt, Error, Event, HoldReason, Proposals, Status};
-use frame::{deps::sp_io, testing_prelude::*, traits::fungible::InspectHold};
+use crate::{mock::*, EndingAt, Error, Event, FreezeReason, Proposals, Status};
+use frame::{deps::sp_io, testing_prelude::*, traits::fungible::InspectFreeze};
 
 const KEY: &[u8] = b":workshop:";
 
@@ -49,7 +49,7 @@ fn voters_can_unlock_right_after_a_cancel() {
 		assert_ok!(Governance::cancel(RuntimeOrigin::signed(ALICE), 0));
 
 		assert_ok!(Governance::unlock(RuntimeOrigin::signed(BOB), 0));
-		assert_eq!(Balances::balance_on_hold(&HoldReason::Vote.into(), &BOB), 0);
+		assert_eq!(Balances::balance_frozen(&FreezeReason::Vote.into(), &BOB), 0);
 	});
 }
 

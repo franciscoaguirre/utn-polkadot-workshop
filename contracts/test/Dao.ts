@@ -80,8 +80,30 @@ describe("Dao", async () => {
     const [voted, aye, amount] = await governance.read.voteOf([id, dao.address]);
     assert.deepEqual([voted, aye, amount], [true, true, parseEther("16")]);
 
-    // The tokens are held inside the DAO's own account: still there, but not spendable.
-    assert.equal(await publicClient.getBalance({ address: dao.address }), 0n);
+    // The tokens are frozen inside the DAO's own account: still there, but not spendable.
+    // (A freeze may also cover the existential deposit, so that tiny bit can be left over.)
+    assert.ok((await publicClient.getBalance({ address: dao.address })) < parseEther("0.01"));
+    assert.equal(await governance.read.votingBalance([dao.address]), parseEther("16"));
+  });
+
+  it("freezes overlap: the DAO votes with its whole treasury on two proposals at once", async () => {
+    const dao = await deployDao("8");
+    const first = await governance.read.nextProposalId();
+    await wait(await dao.write.propose([REMARK_HI], { account: alice.account }));
+    await wait(await dao.write.propose([REMARK_HI], { account: alice.account }));
+    const second = first + 1;
+
+    for (const id of [first, second]) {
+      await wait(await dao.write.vote([id, true], { account: alice.account }));
+      await wait(await dao.write.vote([id, true], { account: bob.account }));
+      await wait(await dao.write.castVote([id]));
+    }
+
+    // Both proposals got all 8 tokens, although the DAO only has 8.
+    for (const id of [first, second]) {
+      const [, , , , ayes] = await governance.read.proposal([id]);
+      assert.equal(ayes, parseEther("8"));
+    }
   });
 
   it("a tie means the DAO doesn't vote", async () => {

@@ -20,10 +20,12 @@ interface IGovernance {
     function propose(bytes calldata call) external returns (uint32 id);
 
     /// Vote with `amount` of the caller's tokens. They stay in the caller's account, but are
-    /// held (can't be spent) until `unlock` after voting ends.
+    /// frozen (can't be spent) until `unlock` after voting ends. Freezes overlap, so the same
+    /// tokens can vote on many proposals at once.
     function vote(uint32 id, bool aye, uint256 amount) external;
 
-    /// After voting on `id` ended, release the caller's held tokens.
+    /// After voting on `id` ended, stop that vote from freezing the caller's tokens. Tokens the
+    /// caller's other votes still need stay frozen.
     function unlock(uint32 id) external;
 
     /// Read a proposal. `exists` is false for unknown ids.
@@ -34,6 +36,11 @@ interface IGovernance {
 
     /// Read `voter`'s vote on proposal `id`.
     function voteOf(uint32 id, address voter) external view returns (bool voted, bool aye, uint256 amount);
+
+    /// How much `who` can vote with on any proposal: what it could spend if none of its tokens
+    /// were frozen. `address(who).balance` leaves frozen tokens out, so after a first vote it
+    /// would say ~0, even though freezes overlap and the same tokens can vote again.
+    function votingBalance(address who) external view returns (uint256);
 
     /// The id the next proposal will get.
     function nextProposalId() external view returns (uint32);

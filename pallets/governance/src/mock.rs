@@ -40,16 +40,20 @@ impl frame_system::Config for Test {
 impl pallet_balances::Config for Test {
 	type Balance = Balance;
 	type AccountStore = System;
+	type RuntimeFreezeReason = RuntimeFreezeReason;
+	type FreezeIdentifier = RuntimeFreezeReason;
+	type MaxFreezes = VariantCountOf<RuntimeFreezeReason>;
 }
 
 pub const VOTING_PERIOD: u64 = 10;
 
 impl pallet_governance::Config for Test {
 	type Currency = Balances;
-	type RuntimeHoldReason = RuntimeHoldReason;
+	type RuntimeFreezeReason = RuntimeFreezeReason;
 	type VotingPeriod = ConstU64<VOTING_PERIOD>;
 	type MaxCallLength = ConstU32<1024>;
 	type MaxProposalsPerBlock = ConstU32<2>;
+	type MaxVotesPerAccount = ConstU32<3>;
 }
 
 pub const ALICE: u64 = 1;

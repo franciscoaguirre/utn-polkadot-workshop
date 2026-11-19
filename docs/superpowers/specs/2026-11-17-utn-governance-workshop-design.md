@@ -15,7 +15,7 @@ Cross-chain and a shared Paseo demo are out of scope (backburner). Students buil
 - **Contract ↔ pallet direction:** contract → pallet via a custom precompile.
 - **The pallet is simulated:** teaching-sized, not production.
 - **Governance pallet scope:** strictly minimal.
-  - `propose(call)`, `vote(id, aye, amount)` with a balance **hold**, `unlock(id)`.
+  - `propose(call)`, `vote(id, aye, amount)` with a balance **freeze** (like OpenGov, so one account can vote on many proposals at once), `unlock(id)`.
   - An `on_initialize` hook enacts passing proposals (ayes > nays) as Root.
   - No quorum, deposit, tracks, conviction, delegation, or vote changes.
 - **Contracts:** Solidity compiled and deployed with **Hardhat**, running on the **EVM backend** of pallet-revive.
@@ -42,7 +42,7 @@ Cross-chain and a shared Paseo demo are out of scope (backburner). Students buil
 - **Precompile pattern:** copy `substrate/frame/vesting/precompiles/` (`pallet-vesting-precompiles`).
   - Each call does `sol!("IGovernance.sol")`, uses `AddressMatcher::Fixed`, sets `HAS_CONTRACT_INFO = false`, charges weight, runs an `ensure_mutable` check, then calls the pallet with `RawOrigin::Signed(env.caller().account_id())`.
 - **Runtime config:** `type Precompiles = (GovernancePrecompile<Self>,)`, `AutoMap = true` (no `map_account` step), and `AllowEVMBytecode` (on by default).
-- **Holds:** follow the `pallet-nis` idiom, with `#[pallet::composite_enum] HoldReason { Vote }` and `fungible::MutateHold`.
+- **Freezes:** follow the `pallet-conviction-voting` (OpenGov) idea with the `fungible` traits: `#[pallet::composite_enum] FreezeReason { Vote }` and `fungible::MutateFreeze`. One freeze per account, sized to its biggest vote, so votes on different proposals overlap. A bounded `VotedOn` list per account lets `unlock` recompute it.
 - **Root dispatch:** follow `pallet-sudo` (`dispatch_bypass_filter(RawOrigin::Root.into())`). Store the call as `BoundedVec<u8, MaxCallLen>` and decode it at enactment.
 - **Ethereum RPC:** the `eth-rpc` adapter (`pallet-revive-eth-rpc`) runs on `:8545` for Hardhat.
   - Fund the Hardhat default mnemonic accounts in the genesis preset. They map to AccountId32 as `h160 ++ 0xEE×12`.
@@ -95,16 +95,16 @@ scripts/setup.sh, scripts/check.sh   pre-work install/build + ✅/❌ readiness 
    - Report the result to the user, and record the build times.
 3. **Governance pallet v1, test-first.**
    - Storage: `NextId`, `Proposals`, `Votes`, `EndingAt`.
-   - Calls and the hook as designed; `Config` exposes `VotingPeriod`, `MaxCallLen`, `MaxProposalsPerBlock`.
-   - Unit tests cover: propose, vote holds, double-vote rejected, pass enacts as Root, reject doesn't, unlock only after end.
+   - Calls and the hook as designed; `Config` exposes `VotingPeriod`, `MaxCallLen`, `MaxProposalsPerBlock`, `MaxVotesPerAccount`.
+   - Unit tests cover: propose, vote freezes, the same tokens voting on several proposals, double-vote rejected, pass enacts as Root, reject doesn't, unlock only after end.
 4. **Cancel exercise.**
    - Write the full `cancel` solution in `solutions/`.
    - In v1, leave a commented `// TODO(workshop)` stub plus `#[ignore]` tests.
    - Verify that the solution makes the tests pass.
 5. **Precompile + runtime wiring.**
-   - `IGovernance.sol` declares `propose(bytes) returns (uint32)`, `vote(uint32,bool,uint256)`, `unlock(uint32)`, and the view `proposal(uint32) returns (status, end, ayes, nays)`.
+   - `IGovernance.sol` declares `propose(bytes) returns (uint32)`, `vote(uint32,bool,uint256)`, `unlock(uint32)`, and the views `proposal(uint32) returns (status, end, ayes, nays)` and `votingBalance(address)`.
    - Register it in the runtime.
-   - Test that a contract account's balance can be held. (This is unverified in research and is the key risk.)
+   - Test that a contract account's balance can be frozen. (This is unverified in research and is the key risk.)
 6. **Hardhat project.** Write the interface, the DAO skeleton and solution, and the extras skeletons and solutions. Add a deploy script and a test that runs against the local node.
 7. **PAPI scripts.** Write scripts 01–04, generate and commit `.papi` descriptors, and run `papi` as `postinstall`.
 8. **Upgrade rehearsal.** Run the full loop end to end: build v2 with `spec_version` + 1, have the DAO and Alice vote on `authorize_upgrade`, let the hook enact it, call `apply_authorized_upgrade`, and confirm with PAPI that `Governance.cancel` exists.
@@ -118,7 +118,7 @@ scripts/setup.sh, scripts/check.sh   pre-work install/build + ✅/❌ readiness 
 | Time | Part | Students do |
 |---|---|---|
 | 0:00–0:10 | Setup check | `check.sh`, start node + eth-rpc, run `01-watch.ts` |
-| 0:10–0:35 | 1. Kernel space | Guided read of the pallet. `02-propose-and-vote.ts`: watch tokens get held and the hook enact a remark |
+| 0:10–0:35 | 1. Kernel space | Guided read of the pallet. `02-propose-and-vote.ts`: watch tokens get frozen and the hook enact a remark |
 | 0:35–1:05 | 2. User space | Fill in `Dao.sol`, deploy with Hardhat, members vote in the DAO, the DAO votes in governance |
 | 1:05–1:40 | 3. Change the kernel | Implement `cancel`, `cargo test`, build v2 wasm, `03-upgrade.ts` via governance, `04-try-cancel.ts` |
 | 1:40–2:00 | Stretch / wrap-up | Extras menu, recap of kernel vs user space |
@@ -145,4 +145,5 @@ What changed from the plan while building, and why:
 - **Prebuilt v1 and v2 runtimes are in `solutions/runtime/`** as fallbacks for broken builds.
 - **The PAPI project uses `moduleResolution: bundler`.** Under `node16`, the generated descriptor types silently resolved to `any`.
 - **The voting period is 60 blocks**, about 1 minute with `--dev-block-time 1000`.
-- **The DAO uses a whitelist and one person, one vote** (changed after review). The owner (the deployer) adds and removes members, and each member counts once. The DAO votes in governance with its whole spendable treasury, in the majority's direction. Anyone can fund the treasury. Tokens held for earlier proposals are automatically excluded from later votes.
+- **The DAO uses a whitelist and one person, one vote** (changed after review). The owner (the deployer) adds and removes members, and each member counts once. The DAO votes in governance with its whole treasury, in the majority's direction. Anyone can fund the treasury.
+- **Votes freeze tokens instead of holding them** (changed after review), like OpenGov. Freezes overlap, so one account (the DAO included) can vote with the same tokens on many proposals at once. Solidity's `address(this).balance` leaves frozen tokens out, so the precompile has a `votingBalance(address)` view the DAO votes with.

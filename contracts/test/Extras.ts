@@ -61,7 +61,7 @@ describe("PredictionMarket and VoteMarket", async () => {
     assert.equal(await publicClient.getBalance({ address: market.address }), 0n);
     await assert.rejects(market.write.claim({ account: bob.account }), /nothing to claim/);
 
-    // Voters unlock their held tokens; the buyer takes back the leftover budget.
+    // Voters unlock their frozen tokens; the buyer takes back the leftover budget.
     await wait(await governance.write.unlock([id], { account: charlie.account }));
     await wait(await voteMarket.write.withdrawLeftover());
     assert.equal(await publicClient.getBalance({ address: voteMarket.address }), 0n);

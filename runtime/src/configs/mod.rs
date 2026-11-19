@@ -382,8 +382,9 @@ parameter_types! {
 /// Workshop: token-voting governance. Passing proposals run as Root.
 impl pallet_governance::Config for Runtime {
 	type Currency = Balances;
-	type RuntimeHoldReason = RuntimeHoldReason;
+	type RuntimeFreezeReason = RuntimeFreezeReason;
 	type VotingPeriod = GovernanceVotingPeriod;
 	type MaxCallLength = ConstU32<4096>;
 	type MaxProposalsPerBlock = ConstU32<16>;
+	type MaxVotesPerAccount = ConstU32<64>;
 }

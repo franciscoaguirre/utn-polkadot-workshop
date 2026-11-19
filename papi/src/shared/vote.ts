@@ -3,8 +3,8 @@
 //   npm run vote -- <proposal id> <aye|nay> <tokens>
 //   npm run vote -- 3 aye 100
 //
-// Your tokens stay in your account but are held until you `npm run unlock -- <id>` after
-// voting ends.
+// Your tokens stay in your account but are frozen until you `npm run unlock -- <id>` after
+// voting ends. Freezes overlap, so the same tokens can vote on other proposals meanwhile.
 import { api, client, fmt, report, requireMe, tokens } from "../lib.js";
 
 const [idText, direction, amountText] = process.argv.slice(2);

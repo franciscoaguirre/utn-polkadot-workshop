@@ -1,8 +1,8 @@
 //! # Governance pallet
 //!
 //! The smallest token-voting governance we could write. Any account can propose *any* call,
-//! token holders vote by locking ("holding") tokens, and when the voting period ends the chain
-//! itself runs the call with **Root** (superuser) privileges if more tokens voted aye than nay.
+//! token holders vote by freezing tokens, and when the voting period ends the chain itself runs
+//! the call with **Root** (superuser) privileges if more tokens voted aye than nay.
 //!
 //! That last part is what a smart contract can never do: a contract has no Root, no access to
 //! other pallets' privileged calls, and nothing runs unless someone sends a transaction.
@@ -25,6 +25,13 @@
 //!
 //! No quorum, no proposal deposit, no tracks, no conviction, no delegation, no changing your
 //! vote. Smart contracts built on top can add those.
+//!
+//! ## Why freezes (and not holds)
+//!
+//! Like OpenGov, a vote *freezes* tokens instead of holding them. A hold sets tokens aside for
+//! one purpose, so tokens held for proposal A can't also vote on proposal B. Freezes overlap:
+//! the account must keep its *largest* vote's worth of tokens, no matter how many proposals it
+//! voted on. With 100 tokens you can vote 100 on A **and** 100 on B at the same time.
 
 #![cfg_attr(not(feature = "std"), no_std)]
 
@@ -42,8 +49,7 @@ pub mod pallet {
 	use frame::{
 		prelude::*,
 		traits::{
-			fungible::{Inspect, MutateHold},
-			tokens::Precision,
+			fungible::{Inspect, MutateFreeze},
 		},
 	};
 
@@ -66,12 +72,12 @@ pub mod pallet {
 
 	#[pallet::config]
 	pub trait Config: frame_system::Config {
-		/// The token used for voting. We need to be able to read balances and place holds.
+		/// The token used for voting. We need to be able to read balances and freeze tokens.
 		type Currency: Inspect<Self::AccountId>
-			+ MutateHold<Self::AccountId, Reason = Self::RuntimeHoldReason>;
+			+ MutateFreeze<Self::AccountId, Id = Self::RuntimeFreezeReason>;
 
-		/// The runtime's list of "reasons why tokens can be held". Ours is `HoldReason::Vote`.
-		type RuntimeHoldReason: From<HoldReason>;
+		/// The runtime's list of "reasons why tokens can be frozen". Ours is `FreezeReason::Vote`.
+		type RuntimeFreezeReason: From<FreezeReason>;
 
 		/// How many blocks a proposal is open for voting.
 		#[pallet::constant]
@@ -84,15 +90,19 @@ pub mod pallet {
 		/// How many proposals can end in the same block (keeps `on_initialize` bounded).
 		#[pallet::constant]
 		type MaxProposalsPerBlock: Get<u32>;
+
+		/// How many votes one account can have at the same time (keeps `unlock` bounded).
+		#[pallet::constant]
+		type MaxVotesPerAccount: Get<u32>;
 	}
 
 	#[pallet::pallet]
 	pub struct Pallet<T>(_);
 
-	/// Why tokens are held by this pallet. Wallets show this next to the locked amount.
+	/// Why tokens are frozen by this pallet. Wallets show this next to the frozen amount.
 	#[pallet::composite_enum]
-	pub enum HoldReason {
-		/// Tokens locked because they were used to vote.
+	pub enum FreezeReason {
+		/// Tokens frozen because they were used to vote.
 		#[codec(index = 0)]
 		Vote,
 	}
@@ -136,7 +146,7 @@ pub mod pallet {
 	#[derive(Encode, Decode, MaxEncodedLen, TypeInfo, Clone, PartialEq, Eq, Debug)]
 	pub struct Vote<Balance> {
 		pub aye: bool,
-		/// How many tokens are held for this vote.
+		/// How many tokens this vote freezes.
 		pub amount: Balance,
 	}
 
@@ -161,6 +171,17 @@ pub mod pallet {
 		Blake2_128Concat,
 		T::AccountId,
 		Vote<BalanceOf<T>>,
+	>;
+
+	/// The proposals each account has a vote on, until it unlocks them. `unlock` reads this to
+	/// work out how many tokens must stay frozen. ~ `mapping(address => uint32[]) votedOn;`
+	#[pallet::storage]
+	pub type VotedOn<T: Config> = StorageMap<
+		_,
+		Blake2_128Concat,
+		T::AccountId,
+		BoundedVec<ProposalId, T::MaxVotesPerAccount>,
+		ValueQuery,
 	>;
 
 	/// Which proposals end in which block, so the hook only looks at the ones that matter.
@@ -189,7 +210,7 @@ pub mod pallet {
 		Approved { id: ProposalId, result: DispatchResult },
 		/// A proposal did not pass.
 		Rejected { id: ProposalId },
-		/// A voter got their tokens back.
+		/// A voter's vote no longer freezes their tokens.
 		Unlocked { id: ProposalId, voter: T::AccountId, amount: BalanceOf<T> },
 		/// The proposer cancelled a proposal.
 		Cancelled { id: ProposalId },
@@ -209,6 +230,10 @@ pub mod pallet {
 		AlreadyVoted,
 		/// You can't vote with 0 tokens.
 		ZeroAmount,
+		/// You can't vote with more tokens than you have.
+		InsufficientBalance,
+		/// This account has `MaxVotesPerAccount` votes already. Unlock some first.
+		TooManyVotes,
 		/// The proposal is still open, so your tokens are still needed.
 		VotingNotOver,
 		/// This account has no vote (or already unlocked it) on this proposal.
@@ -255,9 +280,10 @@ pub mod pallet {
 		}
 
 		/// Vote on proposal `id` with `amount` tokens. The tokens stay in your account but are
-		/// held (can't be spent) until you `unlock` them after voting ends.
+		/// frozen (can't be spent) until you `unlock` them after voting ends. The same tokens
+		/// can vote on other proposals at the same time.
 		#[pallet::call_index(1)]
-		#[pallet::weight(Weight::from_parts(30_000_000, 4_000) + T::DbWeight::get().reads_writes(4, 4))]
+		#[pallet::weight(Weight::from_parts(30_000_000, 4_000) + T::DbWeight::get().reads_writes(5, 5))]
 		pub fn vote(
 			origin: OriginFor<T>,
 			id: ProposalId,
@@ -271,10 +297,17 @@ pub mod pallet {
 			ensure!(proposal.status == Status::Ongoing, Error::<T>::VotingClosed);
 			ensure!(!Votes::<T>::contains_key(id, &voter), Error::<T>::AlreadyVoted);
 			ensure!(!amount.is_zero(), Error::<T>::ZeroAmount);
+			// Tokens frozen for other votes count too: freezes overlap.
+			ensure!(amount <= T::Currency::total_balance(&voter), Error::<T>::InsufficientBalance);
 
-			// Kernel-space power: lock tokens *inside the voter's own account*.
+			VotedOn::<T>::try_mutate(&voter, |ids| ids.try_push(id))
+				.map_err(|_| Error::<T>::TooManyVotes)?;
+
+			// Kernel-space power: freeze tokens *inside the voter's own account*.
 			// A Solidity contract could only do this by taking custody of the tokens.
-			T::Currency::hold(&HoldReason::Vote.into(), &voter, amount)?;
+			// There is one `Vote` freeze per account, as big as its biggest vote, so
+			// `extend_freeze` only ever makes it bigger.
+			T::Currency::extend_freeze(&FreezeReason::Vote.into(), &voter, amount)?;
 
 			if aye {
 				proposal.ayes = proposal.ayes.saturating_add(amount);
@@ -288,9 +321,13 @@ pub mod pallet {
 			Ok(())
 		}
 
-		/// After voting on `id` has ended, release the tokens you voted with.
+		/// After voting on `id` has ended, stop that vote from freezing your tokens. Tokens that
+		/// your other votes still need stay frozen.
 		#[pallet::call_index(2)]
-		#[pallet::weight(Weight::from_parts(25_000_000, 4_000) + T::DbWeight::get().reads_writes(3, 2))]
+		#[pallet::weight(
+			Weight::from_parts(25_000_000, 4_000)
+				+ T::DbWeight::get().reads_writes(4 + T::MaxVotesPerAccount::get() as u64, 4)
+		)]
 		pub fn unlock(origin: OriginFor<T>, id: ProposalId) -> DispatchResult {
 			let voter = ensure_signed(origin)?;
 
@@ -298,7 +335,23 @@ pub mod pallet {
 			ensure!(proposal.status != Status::Ongoing, Error::<T>::VotingNotOver);
 			let vote = Votes::<T>::take(id, &voter).ok_or(Error::<T>::NoVote)?;
 
-			T::Currency::release(&HoldReason::Vote.into(), &voter, vote.amount, Precision::Exact)?;
+			let mut voted_on = VotedOn::<T>::get(&voter);
+			voted_on.retain(|other| *other != id);
+
+			// The freeze must cover the biggest vote that is left.
+			let still_needed = voted_on
+				.iter()
+				.filter_map(|other| Votes::<T>::get(other, &voter))
+				.map(|other_vote| other_vote.amount)
+				.max()
+				.unwrap_or_else(Zero::zero);
+			if still_needed.is_zero() {
+				T::Currency::thaw(&FreezeReason::Vote.into(), &voter)?;
+				VotedOn::<T>::remove(&voter);
+			} else {
+				T::Currency::set_freeze(&FreezeReason::Vote.into(), &voter, still_needed)?;
+				VotedOn::<T>::insert(&voter, voted_on);
+			}
 
 			Self::deposit_event(Event::Unlocked { id, voter, amount: vote.amount });
 			Ok(())
